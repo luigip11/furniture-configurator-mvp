@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useConfiguratorStore } from "@/store/configurator-store";
 import { dictionary } from "@/lib/i18n/dictionary";
 
@@ -18,26 +20,35 @@ export function ConfiguratorHeader() {
         <h1 className="text-2xl font-bold">{t.configurator}</h1>
       </div>
 
-      <div className="flex items-center gap-2 rounded-xl bg-gray-100 p-1">
-        <button
-          type="button"
-          onClick={() => setLocale("it")}
-          className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-            locale === "it" ? "bg-white shadow-sm" : "text-gray-500"
-          }`}
+      <div className="flex flex-wrap items-center gap-2">
+        <Link
+          href="/admin"
+          className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-gray-300 hover:bg-gray-50"
         >
-          IT
-        </button>
+          Area admin
+        </Link>
 
-        <button
-          type="button"
-          onClick={() => setLocale("en")}
-          className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-            locale === "en" ? "bg-white shadow-sm" : "text-gray-500"
-          }`}
-        >
-          EN
-        </button>
+        <div className="flex items-center gap-2 rounded-xl bg-gray-100 p-1">
+          <button
+            type="button"
+            onClick={() => setLocale("it")}
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+              locale === "it" ? "bg-white shadow-sm" : "text-gray-500"
+            }`}
+          >
+            IT
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setLocale("en")}
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+              locale === "en" ? "bg-white shadow-sm" : "text-gray-500"
+            }`}
+          >
+            EN
+          </button>
+        </div>
       </div>
     </header>
   );

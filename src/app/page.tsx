@@ -17,12 +17,20 @@ export default function Home() {
           configurazione.
         </p>
 
-        <Link
-          href="/configuratore"
-          className="inline-flex rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800"
-        >
-          Apri configuratore
-        </Link>
+        <div className="flex flex-col justify-center gap-3 sm:flex-row">
+          <Link
+            href="/configuratore"
+            className="inline-flex justify-center rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800"
+          >
+            Apri configuratore
+          </Link>
+          <Link
+            href="/admin"
+            className="inline-flex justify-center rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-medium text-gray-800 transition hover:border-gray-400 hover:bg-gray-50"
+          >
+            Area admin
+          </Link>
+        </div>
       </section>
     </main>
   );

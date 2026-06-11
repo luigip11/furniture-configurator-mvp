@@ -2,12 +2,19 @@
 
 import { useConfiguratorStore } from "@/store/configurator-store";
 import { dictionary } from "@/lib/i18n/dictionary";
+import {
+  DEFAULT_MODULE_VARIANT,
+  MODULE_VARIANT_OPTIONS,
+  ModuleVariantKey,
+} from "@/types/configurator";
 
 export function ProductPropertiesPanel() {
   const locale = useConfiguratorStore((state) => state.locale);
   const items = useConfiguratorStore((state) => state.items);
   const selectedItemId = useConfiguratorStore((state) => state.selectedItemId);
   const updateItem = useConfiguratorStore((state) => state.updateItem);
+  const updateVariant = useConfiguratorStore((state) => state.updateVariant);
+  const duplicateItem = useConfiguratorStore((state) => state.duplicateItem);
   const moveItem = useConfiguratorStore((state) => state.moveItem);
   const removeItem = useConfiguratorStore((state) => state.removeItem);
 
@@ -43,6 +50,28 @@ export function ProductPropertiesPanel() {
       </div>
 
       <div className="space-y-3">
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-gray-700">
+            {t.variant}
+          </span>
+          <select
+            value={selectedItem.variantKey || DEFAULT_MODULE_VARIANT}
+            onChange={(event) =>
+              updateVariant(
+                selectedItem.id,
+                event.target.value as ModuleVariantKey
+              )
+            }
+            className="mb-2 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-black"
+          >
+            {MODULE_VARIANT_OPTIONS.map((variant) => (
+              <option key={variant.key} value={variant.key}>
+                {locale === "it" ? variant.labelIt : variant.labelEn}
+              </option>
+            ))}
+          </select>
+        </label>
+
         <NumberField
           label={`${t.width} mm`}
           value={selectedItem.widthMm}
@@ -148,8 +177,16 @@ export function ProductPropertiesPanel() {
 
       <button
         type="button"
+        onClick={() => duplicateItem(selectedItem.id)}
+        className="mt-4 w-full rounded-lg border bg-white px-3 py-2 text-sm font-medium transition hover:bg-gray-50"
+      >
+        {t.duplicate}
+      </button>
+
+      <button
+        type="button"
         onClick={() => removeItem(selectedItem.id)}
-        className="mt-4 w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100"
+        className="mt-2 w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100"
       >
         {t.remove}
       </button>

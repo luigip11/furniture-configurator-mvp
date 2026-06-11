@@ -29,16 +29,16 @@ export default async function ConfiguratorPage() {
       <div className="mx-auto max-w-7xl">
         <ConfiguratorHeader />
 
-        <div className="grid gap-4 lg:grid-cols-[280px_1fr_320px]">
-          <div className="min-h-[520px]">
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[280px_minmax(0,1fr)_320px]">
+          <div className="min-h-[520px] min-w-0">
             <CatalogPanel products={products} />
           </div>
 
-          <div className="min-h-[520px]">
+          <div className="min-h-[520px] min-w-0">
             <ConfiguratorScene />
           </div>
 
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <ProductPropertiesPanel />
             <QuotePanel />
           </div>

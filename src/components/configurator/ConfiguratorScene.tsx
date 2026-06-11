@@ -1,25 +1,119 @@
 "use client";
 
-import { Canvas } from "@react-three/fiber";
-import { Edges, Grid, OrbitControls } from "@react-three/drei";
-import { useConfiguratorStore } from "@/store/configurator-store";
-import { ConfiguratorItem } from "@/types/configurator";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Canvas, ThreeEvent, useThree } from "@react-three/fiber";
+import { Edges, Grid, Html, OrbitControls } from "@react-three/drei";
+import * as THREE from "three";
+import {
+  CONFIGURATOR_GRID_SIZE,
+  useConfiguratorStore,
+} from "@/store/configurator-store";
+import {
+  ConfiguratorItem,
+  DEFAULT_MODULE_VARIANT,
+  ModuleVariantKey,
+} from "@/types/configurator";
 import { dictionary } from "@/lib/i18n/dictionary";
 
-function ModuleBox({ item }: { item: ConfiguratorItem }) {
+type DragState = {
+  itemId: string;
+  pointerId: number;
+};
+
+type DragRefState = DragState & {
+  offsetX: number;
+  offsetZ: number;
+};
+
+type ModuleBoxProps = {
+  item: ConfiguratorItem;
+  isDragging: boolean;
+  onDragStart: (
+    item: ConfiguratorItem,
+    event: ThreeEvent<PointerEvent>
+  ) => void;
+};
+
+type PanelProps = {
+  args: [number, number, number];
+  color: string;
+  edgeColor?: string;
+  position: [number, number, number];
+};
+
+const SCENE_SCALE = 700;
+const PANEL_THICKNESS = 0.04;
+const EXTERIOR_COLOR = "#d8d3c7";
+const INTERIOR_COLOR = "#eee8dc";
+const BACK_PANEL_COLOR = "#c9c2b5";
+const SHELF_COLOR = "#f4efe6";
+const SELECTED_COLOR = "#b8d5f4";
+const SELECTED_EDGE_COLOR = "#2563eb";
+const EDGE_COLOR = "#4b5563";
+
+function CabinetPanel({
+  args,
+  color,
+  edgeColor = EDGE_COLOR,
+  position,
+}: PanelProps) {
+  return (
+    <mesh position={position} castShadow receiveShadow>
+      <boxGeometry args={args} />
+      <meshStandardMaterial color={color} roughness={0.72} />
+      <Edges color={edgeColor} />
+    </mesh>
+  );
+}
+
+function getSideColors(variantKey: ModuleVariantKey) {
+  if (variantKey === "one_visible_one_internal") {
+    return {
+      left: EXTERIOR_COLOR,
+      right: INTERIOR_COLOR,
+    };
+  }
+
+  if (variantKey === "two_internal_sides") {
+    return {
+      left: INTERIOR_COLOR,
+      right: INTERIOR_COLOR,
+    };
+  }
+
+  return {
+    left: EXTERIOR_COLOR,
+    right: EXTERIOR_COLOR,
+  };
+}
+
+function ModuleBox({
+  item,
+  isDragging,
+  onDragStart,
+}: ModuleBoxProps) {
+  const locale = useConfiguratorStore((state) => state.locale);
   const selectedItemId = useConfiguratorStore((state) => state.selectedItemId);
   const selectItem = useConfiguratorStore((state) => state.selectItem);
 
   const isSelected = selectedItemId === item.id;
+  const name = locale === "it" ? item.nameIt : item.nameEn || item.nameIt;
+  const variantKey = item.variantKey || DEFAULT_MODULE_VARIANT;
 
-  const width = item.widthMm / 700;
-  const height = item.heightMm / 700;
-  const depth = item.depthMm / 700;
+  const width = item.widthMm / SCENE_SCALE;
+  const height = item.heightMm / SCENE_SCALE;
+  const depth = item.depthMm / SCENE_SCALE;
 
-  const thickness = 0.035;
+  const thickness = Math.min(PANEL_THICKNESS, width / 5, depth / 5);
+  const sideColors = getSideColors(variantKey);
+  const panelColor = isSelected ? SELECTED_COLOR : item.color || EXTERIOR_COLOR;
+  const leftSideColor = isSelected ? SELECTED_COLOR : sideColors.left;
+  const rightSideColor = isSelected ? SELECTED_COLOR : sideColors.right;
+  const edgeColor = isSelected ? SELECTED_EDGE_COLOR : EDGE_COLOR;
 
-  const baseColor = item.color || "#d8d3c7";
-  const selectedColor = "#b7c4d6";
+  const labelClassName = isSelected
+    ? "whitespace-nowrap rounded-md bg-blue-600 px-2 py-1 text-[11px] font-semibold text-white shadow-md"
+    : "whitespace-nowrap rounded-md bg-white/95 px-2 py-1 text-[11px] font-medium text-gray-800 shadow-sm";
 
   return (
     <group
@@ -27,108 +121,278 @@ function ModuleBox({ item }: { item: ConfiguratorItem }) {
       onPointerDown={(event) => {
         event.stopPropagation();
         selectItem(item.id);
+        onDragStart(item, event);
       }}
     >
-      {/* corpo trasparente leggero */}
+      <Html
+        center
+        distanceFactor={8}
+        position={[0, height + 0.16, 0]}
+        style={{ pointerEvents: "none" }}
+      >
+        <div className={labelClassName}>{name}</div>
+      </Html>
+
+      {isSelected ? (
+        <mesh position={[0, height / 2, 0]}>
+          <boxGeometry args={[width + 0.08, height + 0.08, depth + 0.08]} />
+          <meshBasicMaterial
+            color={SELECTED_EDGE_COLOR}
+            transparent
+            opacity={0.08}
+          />
+          <Edges color={SELECTED_EDGE_COLOR} />
+        </mesh>
+      ) : null}
+
+      {/* hitbox trasparente: rende selezione e drag più facili */}
       <mesh position={[0, height / 2, 0]}>
         <boxGeometry args={[width, height, depth]} />
         <meshStandardMaterial
-          color={isSelected ? selectedColor : baseColor}
+          color={panelColor}
           transparent
-          opacity={0.22}
+          opacity={isDragging ? 0.18 : 0.08}
           roughness={0.65}
         />
-        <Edges color={isSelected ? "#111827" : "#4b5563"} />
       </mesh>
 
-      {/* fianco sinistro */}
-      <mesh position={[-width / 2 + thickness / 2, height / 2, 0]}>
-        <boxGeometry args={[thickness, height, depth]} />
-        <meshStandardMaterial color={isSelected ? selectedColor : baseColor} />
-        <Edges color="#374151" />
-      </mesh>
+      <CabinetPanel
+        args={[thickness, height, depth]}
+        color={leftSideColor}
+        edgeColor={edgeColor}
+        position={[-width / 2 + thickness / 2, height / 2, 0]}
+      />
 
-      {/* fianco destro */}
-      <mesh position={[width / 2 - thickness / 2, height / 2, 0]}>
-        <boxGeometry args={[thickness, height, depth]} />
-        <meshStandardMaterial color={isSelected ? selectedColor : baseColor} />
-        <Edges color="#374151" />
-      </mesh>
+      <CabinetPanel
+        args={[thickness, height, depth]}
+        color={rightSideColor}
+        edgeColor={edgeColor}
+        position={[width / 2 - thickness / 2, height / 2, 0]}
+      />
 
-      {/* fondo */}
-      <mesh position={[0, thickness / 2, 0]}>
-        <boxGeometry args={[width, thickness, depth]} />
-        <meshStandardMaterial color={isSelected ? selectedColor : baseColor} />
-        <Edges color="#374151" />
-      </mesh>
+      <CabinetPanel
+        args={[width, thickness, depth]}
+        color={panelColor}
+        edgeColor={edgeColor}
+        position={[0, thickness / 2, 0]}
+      />
 
-      {/* top */}
-      <mesh position={[0, height - thickness / 2, 0]}>
-        <boxGeometry args={[width, thickness, depth]} />
-        <meshStandardMaterial color={isSelected ? selectedColor : baseColor} />
-        <Edges color="#374151" />
-      </mesh>
+      <CabinetPanel
+        args={[width, thickness, depth]}
+        color={panelColor}
+        edgeColor={edgeColor}
+        position={[0, height - thickness / 2, 0]}
+      />
 
-      {/* schienale */}
-      <mesh position={[0, height / 2, -depth / 2 + thickness / 2]}>
-        <boxGeometry args={[width, height, thickness]} />
-        <meshStandardMaterial color="#c9c2b5" />
-        <Edges color="#374151" />
-      </mesh>
+      <CabinetPanel
+        args={[width - thickness * 2, height, thickness]}
+        color={isSelected ? SELECTED_COLOR : BACK_PANEL_COLOR}
+        edgeColor={edgeColor}
+        position={[0, height / 2, -depth / 2 + thickness / 2]}
+      />
 
-      {/* ripiano interno */}
-      <mesh position={[0, height * 0.5, 0]}>
-        <boxGeometry args={[width - thickness * 2, thickness, depth * 0.9]} />
-        <meshStandardMaterial color="#ece7dd" />
-        <Edges color="#6b7280" />
-      </mesh>
+      <CabinetPanel
+        args={[width - thickness * 2, thickness, depth - thickness * 2]}
+        color={isSelected ? "#dbeafe" : SHELF_COLOR}
+        edgeColor={isSelected ? SELECTED_EDGE_COLOR : "#6b7280"}
+        position={[0, height * 0.52, thickness / 2]}
+      />
 
-      {/* basetta di selezione */}
       {isSelected ? (
-        <mesh position={[0, 0.01, 0]}>
-          <boxGeometry args={[width + 0.08, 0.02, depth + 0.08]} />
-          <meshStandardMaterial color="#111827" />
+        <mesh position={[0, 0.012, 0]}>
+          <boxGeometry args={[width + 0.12, 0.024, depth + 0.12]} />
+          <meshStandardMaterial color={SELECTED_EDGE_COLOR} />
         </mesh>
       ) : null}
     </group>
   );
 }
 
+function SceneContent() {
+  const items = useConfiguratorStore((state) => state.items);
+  const selectItem = useConfiguratorStore((state) => state.selectItem);
+  const updatePosition = useConfiguratorStore((state) => state.updatePosition);
+  const [dragState, setDragState] = useState<DragState | null>(null);
+  const dragRef = useRef<DragRefState | null>(null);
+  const { camera, gl } = useThree();
+  const groundPlane = useMemo(
+    () => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
+    []
+  );
+  const planePointRef = useRef(new THREE.Vector3());
+  const pointerRef = useRef(new THREE.Vector2());
+  const raycasterRef = useRef(new THREE.Raycaster());
+
+  const getGroundPoint = useCallback(
+    (event: PointerEvent) => {
+      const bounds = gl.domElement.getBoundingClientRect();
+
+      pointerRef.current.set(
+        ((event.clientX - bounds.left) / bounds.width) * 2 - 1,
+        -((event.clientY - bounds.top) / bounds.height) * 2 + 1
+      );
+
+      raycasterRef.current.setFromCamera(pointerRef.current, camera);
+
+      return raycasterRef.current.ray.intersectPlane(
+        groundPlane,
+        planePointRef.current
+      );
+    },
+    [camera, gl.domElement, groundPlane]
+  );
+
+  const moveDraggedItem = useCallback(
+    (point: THREE.Vector3) => {
+      const currentDrag = dragRef.current;
+
+      if (!currentDrag) return;
+
+      updatePosition(currentDrag.itemId, [
+        point.x + currentDrag.offsetX,
+        0,
+        point.z + currentDrag.offsetZ,
+      ]);
+    },
+    [updatePosition]
+  );
+
+  const stopDragging = useCallback(
+    (pointerId?: number) => {
+      const currentDrag = dragRef.current;
+
+      if (!currentDrag) return;
+      if (pointerId !== undefined && pointerId !== currentDrag.pointerId) return;
+
+      gl.domElement.releasePointerCapture?.(currentDrag.pointerId);
+      dragRef.current = null;
+      setDragState(null);
+    },
+    [gl.domElement]
+  );
+
+  useEffect(() => {
+    const handleWindowPointerMove = (event: PointerEvent) => {
+      const currentDrag = dragRef.current;
+
+      if (!currentDrag || event.pointerId !== currentDrag.pointerId) return;
+
+      const point = getGroundPoint(event);
+
+      if (point) moveDraggedItem(point);
+    };
+
+    const handleWindowPointerUp = (event: PointerEvent) => {
+      stopDragging(event.pointerId);
+    };
+
+    window.addEventListener("pointermove", handleWindowPointerMove);
+    window.addEventListener("pointerup", handleWindowPointerUp);
+    window.addEventListener("pointercancel", handleWindowPointerUp);
+
+    return () => {
+      window.removeEventListener("pointermove", handleWindowPointerMove);
+      window.removeEventListener("pointerup", handleWindowPointerUp);
+      window.removeEventListener("pointercancel", handleWindowPointerUp);
+    };
+  }, [getGroundPoint, moveDraggedItem, stopDragging]);
+
+  const handleDragStart = (
+    item: ConfiguratorItem,
+    event: ThreeEvent<PointerEvent>
+  ) => {
+    const point =
+      event.ray.intersectPlane(groundPlane, planePointRef.current) ||
+      event.point;
+
+    gl.domElement.setPointerCapture?.(event.pointerId);
+    dragRef.current = {
+      itemId: item.id,
+      pointerId: event.pointerId,
+      offsetX: item.position[0] - point.x,
+      offsetZ: item.position[2] - point.z,
+    };
+
+    setDragState({ itemId: item.id, pointerId: event.pointerId });
+  };
+
+  const handlePlanePointerMove = (event: ThreeEvent<PointerEvent>) => {
+    if (!dragRef.current) return;
+
+    const point =
+      event.ray.intersectPlane(groundPlane, planePointRef.current) ||
+      event.point;
+
+    moveDraggedItem(point);
+  };
+
+  return (
+    <>
+      <ambientLight intensity={0.8} />
+      <directionalLight position={[5, 8, 5]} intensity={1.3} />
+
+      <Grid
+        args={[14, 14]}
+        cellSize={CONFIGURATOR_GRID_SIZE}
+        cellThickness={0.4}
+        sectionSize={1}
+        sectionThickness={1}
+        fadeDistance={18}
+        fadeStrength={1}
+      />
+
+      <mesh
+        position={[0, -0.01, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        onPointerDown={(event) => {
+          if (dragRef.current) return;
+
+          event.stopPropagation();
+          selectItem(null);
+        }}
+        onPointerMove={handlePlanePointerMove}
+      >
+        <planeGeometry args={[16, 16]} />
+        <meshBasicMaterial
+          color="#ffffff"
+          depthWrite={false}
+          transparent
+          opacity={0}
+        />
+      </mesh>
+
+      {items.map((item) => (
+        <ModuleBox
+          key={item.id}
+          item={item}
+          isDragging={dragState?.itemId === item.id}
+          onDragStart={handleDragStart}
+        />
+      ))}
+
+      <OrbitControls makeDefault enabled={dragState === null} />
+    </>
+  );
+}
+
 export function ConfiguratorScene() {
   const locale = useConfiguratorStore((state) => state.locale);
-  const items = useConfiguratorStore((state) => state.items);
   const selectItem = useConfiguratorStore((state) => state.selectItem);
 
   const t = dictionary[locale];
 
   return (
-    <section className="relative h-full min-h-[520px] overflow-hidden rounded-2xl border bg-gray-100 shadow-sm">
+    <section className="relative h-full min-h-[520px] w-full overflow-hidden rounded-2xl border bg-gray-100 shadow-sm">
       <div className="absolute left-4 top-4 z-10 rounded-xl bg-white/90 px-3 py-2 text-xs text-gray-600 shadow-sm">
         {t.sceneHint}
       </div>
 
       <Canvas
         camera={{ position: [3.5, 2.8, 4.2], fov: 45 }}
+        shadows
         onPointerMissed={() => selectItem(null)}
       >
-        <ambientLight intensity={0.8} />
-        <directionalLight position={[5, 8, 5]} intensity={1.3} />
-
-        <Grid
-          args={[14, 14]}
-          cellSize={0.25}
-          cellThickness={0.4}
-          sectionSize={1}
-          sectionThickness={1}
-          fadeDistance={18}
-          fadeStrength={1}
-        />
-
-        {items.map((item) => (
-          <ModuleBox key={item.id} item={item} />
-        ))}
-
-        <OrbitControls makeDefault />
+        <SceneContent />
       </Canvas>
     </section>
   );

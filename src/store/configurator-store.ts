@@ -1,5 +1,24 @@
 import { create } from "zustand";
-import { ConfiguratorItem, Locale, Product } from "@/types/configurator";
+import {
+  ConfiguratorItem,
+  DEFAULT_MODULE_VARIANT,
+  Locale,
+  ModuleVariantKey,
+  Product,
+} from "@/types/configurator";
+
+export const CONFIGURATOR_GRID_SIZE = 0.25;
+
+export const snapToGrid = (value: number) =>
+  Number((Math.round(value / CONFIGURATOR_GRID_SIZE) * CONFIGURATOR_GRID_SIZE).toFixed(2));
+
+const snapPosition = (
+  position: [number, number, number]
+): [number, number, number] => [
+  snapToGrid(position[0]),
+  position[1],
+  snapToGrid(position[2]),
+];
 
 type ConfiguratorStore = {
   locale: Locale;
@@ -15,14 +34,32 @@ type ConfiguratorStore = {
       Pick<ConfiguratorItem, "widthMm" | "heightMm" | "depthMm" | "position">
     >
   ) => void;
+  updateVariant: (itemId: string, variantKey: ModuleVariantKey) => void;
+  updatePosition: (
+    itemId: string,
+    position: [number, number, number]
+  ) => void;
+  duplicateItem: (itemId: string) => void;
   moveItem: (itemId: string, axis: "x" | "z", value: number) => void;
   removeItem: (itemId: string) => void;
   clear: () => void;
 };
 
-const getNextPosition = (itemsLength: number): [number, number, number] => {
-  const spacing = 1.05;
-  return [itemsLength * spacing, 0, 0];
+const getItemSceneWidth = (item: Pick<ConfiguratorItem, "widthMm">) =>
+  item.widthMm / 700;
+
+const getNextPosition = (
+  items: ConfiguratorItem[],
+  widthMm: number
+): [number, number, number] => {
+  if (items.length === 0) return [0, 0, 0];
+
+  const rightEdge = Math.max(
+    ...items.map((item) => item.position[0] + getItemSceneWidth(item) / 2)
+  );
+  const width = widthMm / 700;
+
+  return [snapToGrid(rightEdge + width / 2), 0, 0];
 };
 
 export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
@@ -45,7 +82,8 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
       heightMm: product.height_mm,
       depthMm: product.depth_mm,
       price: product.price,
-      position: getNextPosition(currentItems.length),
+      position: getNextPosition(currentItems, product.width_mm),
+      variantKey: DEFAULT_MODULE_VARIANT,
       color: "#d8d3c7",
     };
 
@@ -62,8 +100,51 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
   updateItem: (itemId, data) => {
     set({
       items: get().items.map((item) =>
-        item.id === itemId ? { ...item, ...data } : item
+        item.id === itemId
+          ? {
+              ...item,
+              ...data,
+              position: data.position ? snapPosition(data.position) : item.position,
+            }
+          : item
       ),
+    });
+  },
+
+  updateVariant: (itemId, variantKey) => {
+    set({
+      items: get().items.map((item) =>
+        item.id === itemId ? { ...item, variantKey } : item
+      ),
+    });
+  },
+
+  updatePosition: (itemId, position) => {
+    set({
+      items: get().items.map((item) =>
+        item.id === itemId ? { ...item, position: snapPosition(position) } : item
+      ),
+    });
+  },
+
+  duplicateItem: (itemId) => {
+    const sourceItem = get().items.find((item) => item.id === itemId);
+
+    if (!sourceItem) return;
+
+    const duplicatedItem: ConfiguratorItem = {
+      ...sourceItem,
+      id: crypto.randomUUID(),
+      position: snapPosition([
+        sourceItem.position[0] + getItemSceneWidth(sourceItem),
+        sourceItem.position[1],
+        sourceItem.position[2],
+      ]),
+    };
+
+    set({
+      items: [...get().items, duplicatedItem],
+      selectedItemId: duplicatedItem.id,
     });
   },
 
@@ -76,7 +157,10 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
 
         return {
           ...item,
-          position: axis === "x" ? [value, y, z] : [x, y, value],
+          position:
+            axis === "x"
+              ? snapPosition([value, y, z])
+              : snapPosition([x, y, value]),
         };
       }),
     });

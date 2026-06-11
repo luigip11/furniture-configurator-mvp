@@ -3,6 +3,10 @@
 import { useMemo } from "react";
 import { useConfiguratorStore } from "@/store/configurator-store";
 import { dictionary } from "@/lib/i18n/dictionary";
+import {
+  DEFAULT_MODULE_VARIANT,
+  getModuleVariantLabel,
+} from "@/types/configurator";
 
 export function QuotePanel() {
   const locale = useConfiguratorStore((state) => state.locale);
@@ -38,6 +42,10 @@ export function QuotePanel() {
           {items.map((item) => {
             const name =
               locale === "it" ? item.nameIt : item.nameEn || item.nameIt;
+            const variantLabel = getModuleVariantLabel(
+              item.variantKey || DEFAULT_MODULE_VARIANT,
+              locale
+            );
 
             return (
               <div
@@ -46,6 +54,14 @@ export function QuotePanel() {
               >
                 <div>
                   <p className="text-sm font-medium">{name}</p>
+                  {item.code ? (
+                    <p className="mt-1 text-xs text-gray-500">
+                      {t.code}: {item.code}
+                    </p>
+                  ) : null}
+                  <p className="mt-1 text-xs text-gray-500">
+                    {t.variant}: {variantLabel}
+                  </p>
                   <p className="mt-1 text-xs text-gray-500">
                     {item.widthMm} × {item.heightMm} × {item.depthMm} mm
                   </p>

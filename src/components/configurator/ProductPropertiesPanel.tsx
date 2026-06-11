@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Minus, Plus } from "lucide-react";
+import { Minus, Plus, RotateCw } from "lucide-react";
 import {
   CONFIGURATOR_GRID_SIZE,
   useConfiguratorStore,
@@ -22,6 +22,7 @@ export function ProductPropertiesPanel() {
   const updateItem = useConfiguratorStore((state) => state.updateItem);
   const updateVariant = useConfiguratorStore((state) => state.updateVariant);
   const duplicateItem = useConfiguratorStore((state) => state.duplicateItem);
+  const rotateItem = useConfiguratorStore((state) => state.rotateItem);
   const moveItem = useConfiguratorStore((state) => state.moveItem);
   const removeItem = useConfiguratorStore((state) => state.removeItem);
 
@@ -241,13 +242,24 @@ export function ProductPropertiesPanel() {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => duplicateItem(selectedItem.id)}
-            className="mt-4 w-full rounded-lg border border-gray-300 bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 transition hover:bg-gray-300"
-          >
-            {t.duplicate}
-          </button>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => rotateItem(selectedItem.id)}
+              className="flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm font-medium text-slate-800 transition hover:bg-slate-200"
+            >
+              <RotateCw size={16} aria-hidden="true" />
+              Ruota 90°
+            </button>
+
+            <button
+              type="button"
+              onClick={() => duplicateItem(selectedItem.id)}
+              className="rounded-lg border border-gray-300 bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 transition hover:bg-gray-300"
+            >
+              {t.duplicate}
+            </button>
+          </div>
 
           <button
             type="button"

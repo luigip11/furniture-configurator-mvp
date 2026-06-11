@@ -130,6 +130,7 @@ function ModuleBox({
   return (
     <group
       position={[item.position[0], 0, item.position[2]]}
+      rotation={[0, THREE.MathUtils.degToRad(item.rotationY || 0), 0]}
       onPointerDown={(event) => {
         event.stopPropagation();
         selectItem(item.id);

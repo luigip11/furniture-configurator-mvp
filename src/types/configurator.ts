@@ -76,6 +76,7 @@ export type ConfiguratorItem = {
   depthMm: number;
   price?: number | null;
   position: [number, number, number];
+  rotationY: number;
   variantKey: ModuleVariantKey;
   color?: string;
 };

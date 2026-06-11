@@ -12,6 +12,8 @@ export const CONFIGURATOR_GRID_SIZE = 0.25;
 export const snapToGrid = (value: number) =>
   Number((Math.round(value / CONFIGURATOR_GRID_SIZE) * CONFIGURATOR_GRID_SIZE).toFixed(2));
 
+const normalizeRotation = (rotationY: number) => ((rotationY % 360) + 360) % 360;
+
 const snapPosition = (
   position: [number, number, number]
 ): [number, number, number] => [
@@ -40,6 +42,7 @@ type ConfiguratorStore = {
     position: [number, number, number]
   ) => void;
   duplicateItem: (itemId: string) => void;
+  rotateItem: (itemId: string) => void;
   moveItem: (itemId: string, axis: "x" | "z", value: number) => void;
   removeItem: (itemId: string) => void;
   clear: () => void;
@@ -83,6 +86,7 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
       depthMm: product.depth_mm,
       price: product.price,
       position: getNextPosition(currentItems, product.width_mm),
+      rotationY: 0,
       variantKey: DEFAULT_MODULE_VARIANT,
       color: "#d8d3c7",
     };
@@ -145,6 +149,16 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
     set({
       items: [...get().items, duplicatedItem],
       selectedItemId: duplicatedItem.id,
+    });
+  },
+
+  rotateItem: (itemId) => {
+    set({
+      items: get().items.map((item) =>
+        item.id === itemId
+          ? { ...item, rotationY: normalizeRotation((item.rotationY || 0) + 90) }
+          : item
+      ),
     });
   },
 

@@ -15,116 +15,17 @@ import {
 
 import { supabase } from "@/lib/supabase/client";
 import type { Category, Product } from "@/types/configurator";
+import {
+  buildProductPayload,
+  emptyProductForm,
+  productToForm,
+  type ProductFormValues,
+} from "@/lib/admin/product-form";
 
 type ProductAdminProps = {
   initialProducts: Product[];
   categories: Category[];
 };
-
-type ProductFormValues = {
-  category_id: string;
-  name_it: string;
-  name_en: string;
-  code: string;
-  width_mm: string;
-  height_mm: string;
-  depth_mm: string;
-  thickness_mm: string;
-  price: string;
-  preview_image_url: string;
-  model_url: string;
-  technical_file_url: string;
-  is_published: boolean;
-};
-
-type ProductPayload = Omit<Product, "id">;
-
-const emptyProductForm: ProductFormValues = {
-  category_id: "",
-  name_it: "",
-  name_en: "",
-  code: "",
-  width_mm: "",
-  height_mm: "",
-  depth_mm: "",
-  thickness_mm: "",
-  price: "",
-  preview_image_url: "",
-  model_url: "",
-  technical_file_url: "",
-  is_published: false,
-};
-
-function optionalText(value: string) {
-  const trimmedValue = value.trim();
-  return trimmedValue.length > 0 ? trimmedValue : null;
-}
-
-function requiredNumber(value: string, label: string) {
-  const numberValue = Number(value);
-
-  if (!Number.isFinite(numberValue)) {
-    throw new Error(`${label} deve essere un numero valido.`);
-  }
-
-  return numberValue;
-}
-
-function optionalNumber(value: string, label: string) {
-  if (value.trim().length === 0) {
-    return null;
-  }
-
-  return requiredNumber(value, label);
-}
-
-function productToForm(product: Product): ProductFormValues {
-  return {
-    category_id: product.category_id || "",
-    name_it: product.name_it,
-    name_en: product.name_en || "",
-    code: product.code || "",
-    width_mm: String(product.width_mm),
-    height_mm: String(product.height_mm),
-    depth_mm: String(product.depth_mm),
-    thickness_mm:
-      product.thickness_mm === null || product.thickness_mm === undefined
-        ? ""
-        : String(product.thickness_mm),
-    price:
-      product.price === null || product.price === undefined
-        ? ""
-        : String(product.price),
-    preview_image_url: product.preview_image_url || "",
-    model_url: product.model_url || "",
-    technical_file_url: product.technical_file_url || "",
-    is_published: product.is_published,
-  };
-}
-
-function buildPayload(form: ProductFormValues): ProductPayload {
-  const nameIt = form.name_it.trim();
-
-  if (!nameIt) {
-    throw new Error("Nome IT obbligatorio.");
-  }
-
-  return {
-    category_id: optionalText(form.category_id),
-    name_it: nameIt,
-    name_en: optionalText(form.name_en),
-    code: optionalText(form.code),
-    width_mm: requiredNumber(form.width_mm, "Larghezza"),
-    height_mm: requiredNumber(form.height_mm, "Altezza"),
-    depth_mm: requiredNumber(form.depth_mm, "Profondità"),
-    thickness_mm: optionalNumber(form.thickness_mm, "Spessore"),
-    price: optionalNumber(form.price, "Prezzo"),
-    preview_image_url: optionalText(form.preview_image_url),
-    model_url: optionalText(form.model_url),
-    technical_file_url: optionalText(form.technical_file_url),
-    is_published: form.is_published,
-  };
-}
 
 export function ProductAdmin({
   initialProducts,
@@ -170,7 +71,7 @@ export function ProductAdmin({
     setErrorMessage(null);
 
     try {
-      const payload = buildPayload(form);
+      const payload = buildProductPayload(form);
 
       if (editingProductId) {
         const { data, error } = await supabase

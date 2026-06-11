@@ -4,76 +4,18 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 
+import {
+  buildCategoryPayload,
+  categoryToForm,
+  emptyCategoryForm,
+  type CategoryFormValues,
+} from "@/lib/admin/category-form";
 import { supabase } from "@/lib/supabase/client";
 import type { Category } from "@/types/configurator";
 
 type CategoryAdminProps = {
   initialCategories: Category[];
 };
-
-type CategoryFormValues = {
-  name: string;
-  slug: string;
-  description: string;
-  sort_order: string;
-};
-
-type CategoryPayload = Omit<Category, "id">;
-
-const emptyCategoryForm: CategoryFormValues = {
-  name: "",
-  slug: "",
-  description: "",
-  sort_order: "",
-};
-
-function optionalText(value: string) {
-  const trimmedValue = value.trim();
-  return trimmedValue.length > 0 ? trimmedValue : null;
-}
-
-function slugify(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-function categoryToForm(category: Category): CategoryFormValues {
-  return {
-    name: category.name,
-    slug: category.slug,
-    description: category.description || "",
-    sort_order:
-      category.sort_order === null || category.sort_order === undefined
-        ? ""
-        : String(category.sort_order),
-  };
-}
-
-function buildPayload(form: CategoryFormValues): CategoryPayload {
-  const name = form.name.trim();
-  const slug = form.slug.trim() || slugify(name);
-
-  if (!name) {
-    throw new Error("Nome categoria obbligatorio.");
-  }
-
-  if (!slug) {
-    throw new Error("Slug categoria obbligatorio.");
-  }
-
-  return {
-    name,
-    slug,
-    description: optionalText(form.description),
-    sort_order:
-      form.sort_order.trim().length > 0 ? Number(form.sort_order) : null,
-  };
-}
 
 export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
   const router = useRouter();
@@ -114,7 +56,7 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
     setErrorMessage(null);
 
     try {
-      const payload = buildPayload(form);
+      const payload = buildCategoryPayload(form);
 
       if (editingCategoryId) {
         const { data, error } = await supabase

@@ -6,21 +6,14 @@ import {
   ModuleVariantKey,
   Product,
 } from "@/types/configurator";
+import {
+  getItemSceneWidth,
+  getNextPosition,
+  normalizeRotation,
+  snapPosition,
+} from "@/store/configurator-calculations";
 
-export const CONFIGURATOR_GRID_SIZE = 0.25;
-
-export const snapToGrid = (value: number) =>
-  Number((Math.round(value / CONFIGURATOR_GRID_SIZE) * CONFIGURATOR_GRID_SIZE).toFixed(2));
-
-const normalizeRotation = (rotationY: number) => ((rotationY % 360) + 360) % 360;
-
-const snapPosition = (
-  position: [number, number, number]
-): [number, number, number] => [
-  snapToGrid(position[0]),
-  position[1],
-  snapToGrid(position[2]),
-];
+export { CONFIGURATOR_GRID_SIZE, snapToGrid } from "@/store/configurator-calculations";
 
 type ConfiguratorStore = {
   locale: Locale;
@@ -46,23 +39,6 @@ type ConfiguratorStore = {
   moveItem: (itemId: string, axis: "x" | "z", value: number) => void;
   removeItem: (itemId: string) => void;
   clear: () => void;
-};
-
-const getItemSceneWidth = (item: Pick<ConfiguratorItem, "widthMm">) =>
-  item.widthMm / 700;
-
-const getNextPosition = (
-  items: ConfiguratorItem[],
-  widthMm: number
-): [number, number, number] => {
-  if (items.length === 0) return [0, 0, 0];
-
-  const rightEdge = Math.max(
-    ...items.map((item) => item.position[0] + getItemSceneWidth(item) / 2)
-  );
-  const width = widthMm / 700;
-
-  return [snapToGrid(rightEdge + width / 2), 0, 0];
 };
 
 export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({

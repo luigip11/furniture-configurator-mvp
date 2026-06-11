@@ -442,7 +442,7 @@ export function ConfiguratorScene() {
   };
 
   return (
-    <section className="relative h-full min-h-[520px] w-full overflow-hidden rounded-2xl border bg-gray-100 shadow-sm">
+    <section className="configurator-scene relative h-[520px] w-full overflow-hidden rounded-2xl border bg-gray-100 shadow-sm lg:h-full lg:min-h-0">
       <div className="absolute left-4 top-4 z-10 rounded-xl bg-white/90 px-3 py-2 text-xs text-gray-600 shadow-sm">
         {t.sceneHint}
       </div>
@@ -470,7 +470,22 @@ export function ConfiguratorScene() {
 
       <Canvas
         camera={{ position: [3.5, 2.8, 4.2], fov: 45 }}
+        onCreated={({ gl }) => {
+          const parent = gl.domElement.parentElement;
+
+          if (!parent) return;
+
+          const syncCanvasSize = () => {
+            gl.domElement.style.height = "100%";
+            gl.domElement.style.width = "100%";
+            gl.setSize(parent.clientWidth, parent.clientHeight, false);
+          };
+
+          syncCanvasSize();
+          requestAnimationFrame(syncCanvasSize);
+        }}
         shadows
+        style={{ height: "100%", width: "100%" }}
         onPointerMissed={() => selectItem(null)}
       >
         <SceneContent viewCommand={viewCommand} />

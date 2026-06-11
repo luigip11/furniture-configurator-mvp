@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, ThreeEvent, useThree } from "@react-three/fiber";
 import { Edges, Grid, Html, OrbitControls } from "@react-three/drei";
-import { Minus, Plus, RotateCw } from "lucide-react";
+import { Eye, EyeOff, Minus, Plus, RotateCw } from "lucide-react";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import {
@@ -37,6 +37,7 @@ type ViewCommand = {
 type ModuleBoxProps = {
   item: ConfiguratorItem;
   isDragging: boolean;
+  labelsVisible: boolean;
   onDragStart: (
     item: ConfiguratorItem,
     event: ThreeEvent<PointerEvent>
@@ -101,6 +102,7 @@ function getSideColors(variantKey: ModuleVariantKey) {
 function ModuleBox({
   item,
   isDragging,
+  labelsVisible,
   onDragStart,
 }: ModuleBoxProps) {
   const locale = useConfiguratorStore((state) => state.locale);
@@ -124,8 +126,8 @@ function ModuleBox({
   const edgeColor = isSelected ? SELECTED_EDGE_COLOR : EDGE_COLOR;
 
   const labelClassName = isSelected
-    ? "whitespace-nowrap rounded-md bg-blue-600 px-2 py-1 text-center text-[11px] font-semibold text-white shadow-md"
-    : "whitespace-nowrap rounded-md bg-white/95 px-2 py-1 text-center text-[11px] font-medium text-gray-800 shadow-sm";
+    ? "whitespace-nowrap rounded-md border border-blue-300/70 bg-blue-600/75 px-2 py-1 text-center text-[11px] font-semibold text-white shadow-sm backdrop-blur-sm"
+    : "whitespace-nowrap rounded-md border border-white/60 bg-white/65 px-2 py-1 text-center text-[11px] font-medium text-gray-800 shadow-sm backdrop-blur-sm";
 
   return (
     <group
@@ -137,19 +139,21 @@ function ModuleBox({
         onDragStart(item, event);
       }}
     >
-      <Html
-        center
-        distanceFactor={8}
-        position={[0, height + 0.16, 0]}
-        style={{ pointerEvents: "none" }}
-      >
-        <div className={labelClassName}>
-          <div>{name}</div>
-          <div className="text-[10px] font-normal opacity-85">
-            {dimensionsLabel}
+      {labelsVisible ? (
+        <Html
+          center
+          distanceFactor={9}
+          position={[0, height + 0.34, 0]}
+          style={{ pointerEvents: "none" }}
+        >
+          <div className={labelClassName}>
+            <div>{name}</div>
+            <div className="text-[10px] font-normal opacity-80">
+              {dimensionsLabel}
+            </div>
           </div>
-        </div>
-      </Html>
+        </Html>
+      ) : null}
 
       {isSelected ? (
         <mesh position={[0, height / 2, 0]}>
@@ -226,7 +230,13 @@ function ModuleBox({
   );
 }
 
-function SceneContent({ viewCommand }: { viewCommand: ViewCommand | null }) {
+function SceneContent({
+  labelsVisible,
+  viewCommand,
+}: {
+  labelsVisible: boolean;
+  viewCommand: ViewCommand | null;
+}) {
   const items = useConfiguratorStore((state) => state.items);
   const selectItem = useConfiguratorStore((state) => state.selectItem);
   const updatePosition = useConfiguratorStore((state) => state.updatePosition);
@@ -416,6 +426,7 @@ function SceneContent({ viewCommand }: { viewCommand: ViewCommand | null }) {
           key={item.id}
           item={item}
           isDragging={dragState?.itemId === item.id}
+          labelsVisible={labelsVisible}
           onDragStart={handleDragStart}
         />
       ))}
@@ -431,7 +442,9 @@ function SceneContent({ viewCommand }: { viewCommand: ViewCommand | null }) {
 
 export function ConfiguratorScene() {
   const locale = useConfiguratorStore((state) => state.locale);
+  const items = useConfiguratorStore((state) => state.items);
   const selectItem = useConfiguratorStore((state) => state.selectItem);
+  const [labelsVisible, setLabelsVisible] = useState(true);
   const [viewCommand, setViewCommand] = useState<ViewCommand | null>(null);
   const viewCommandIdRef = useRef(0);
 
@@ -447,6 +460,23 @@ export function ConfiguratorScene() {
       <div className="absolute left-4 top-4 z-10 rounded-xl bg-white/90 px-3 py-2 text-xs text-gray-600 shadow-sm">
         {t.sceneHint}
       </div>
+
+      {items.length > 0 ? (
+        <button
+          type="button"
+          aria-pressed={labelsVisible}
+          aria-label={labelsVisible ? "Nascondi etichette" : "Mostra etichette"}
+          title={labelsVisible ? "Nascondi etichette" : "Mostra etichette"}
+          onClick={() => setLabelsVisible((visible) => !visible)}
+          className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-lg bg-white/90 text-gray-800 shadow-sm ring-1 ring-black/10 transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+        >
+          {labelsVisible ? (
+            <Eye size={18} aria-hidden="true" />
+          ) : (
+            <EyeOff size={18} aria-hidden="true" />
+          )}
+        </button>
+      ) : null}
 
       <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-2 rounded-lg bg-white/95 p-1 shadow-md ring-1 ring-black/10">
         <MapControlButton
@@ -489,7 +519,7 @@ export function ConfiguratorScene() {
         style={{ height: "100%", width: "100%" }}
         onPointerMissed={() => selectItem(null)}
       >
-        <SceneContent viewCommand={viewCommand} />
+        <SceneContent labelsVisible={labelsVisible} viewCommand={viewCommand} />
       </Canvas>
     </section>
   );

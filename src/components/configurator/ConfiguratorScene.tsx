@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, ThreeEvent, useThree } from "@react-three/fiber";
 import { Edges, Grid, Html, OrbitControls } from "@react-three/drei";
+import { Minus, Plus, RotateCw } from "lucide-react";
 import * as THREE from "three";
+import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import {
   CONFIGURATOR_GRID_SIZE,
   useConfiguratorStore,
@@ -23,6 +25,13 @@ type DragState = {
 type DragRefState = DragState & {
   offsetX: number;
   offsetZ: number;
+};
+
+type ViewCommandType = "zoom-in" | "zoom-out" | "rotate";
+
+type ViewCommand = {
+  id: number;
+  type: ViewCommandType;
 };
 
 type ModuleBoxProps = {
@@ -47,9 +56,11 @@ const EXTERIOR_COLOR = "#d8d3c7";
 const INTERIOR_COLOR = "#eee8dc";
 const BACK_PANEL_COLOR = "#c9c2b5";
 const SHELF_COLOR = "#f4efe6";
-const SELECTED_COLOR = "#b8d5f4";
 const SELECTED_EDGE_COLOR = "#2563eb";
 const EDGE_COLOR = "#4b5563";
+const CAMERA_MIN_DISTANCE = 1.2;
+const CAMERA_MAX_DISTANCE = 12;
+const CAMERA_ROTATION_STEP = Math.PI / 8;
 
 function CabinetPanel({
   args,
@@ -99,6 +110,7 @@ function ModuleBox({
   const isSelected = selectedItemId === item.id;
   const name = locale === "it" ? item.nameIt : item.nameEn || item.nameIt;
   const variantKey = item.variantKey || DEFAULT_MODULE_VARIANT;
+  const dimensionsLabel = `${item.widthMm} x ${item.heightMm} x ${item.depthMm} mm`;
 
   const width = item.widthMm / SCENE_SCALE;
   const height = item.heightMm / SCENE_SCALE;
@@ -106,14 +118,14 @@ function ModuleBox({
 
   const thickness = Math.min(PANEL_THICKNESS, width / 5, depth / 5);
   const sideColors = getSideColors(variantKey);
-  const panelColor = isSelected ? SELECTED_COLOR : item.color || EXTERIOR_COLOR;
-  const leftSideColor = isSelected ? SELECTED_COLOR : sideColors.left;
-  const rightSideColor = isSelected ? SELECTED_COLOR : sideColors.right;
+  const panelColor = item.color || EXTERIOR_COLOR;
+  const leftSideColor = sideColors.left;
+  const rightSideColor = sideColors.right;
   const edgeColor = isSelected ? SELECTED_EDGE_COLOR : EDGE_COLOR;
 
   const labelClassName = isSelected
-    ? "whitespace-nowrap rounded-md bg-blue-600 px-2 py-1 text-[11px] font-semibold text-white shadow-md"
-    : "whitespace-nowrap rounded-md bg-white/95 px-2 py-1 text-[11px] font-medium text-gray-800 shadow-sm";
+    ? "whitespace-nowrap rounded-md bg-blue-600 px-2 py-1 text-center text-[11px] font-semibold text-white shadow-md"
+    : "whitespace-nowrap rounded-md bg-white/95 px-2 py-1 text-center text-[11px] font-medium text-gray-800 shadow-sm";
 
   return (
     <group
@@ -130,7 +142,12 @@ function ModuleBox({
         position={[0, height + 0.16, 0]}
         style={{ pointerEvents: "none" }}
       >
-        <div className={labelClassName}>{name}</div>
+        <div className={labelClassName}>
+          <div>{name}</div>
+          <div className="text-[10px] font-normal opacity-85">
+            {dimensionsLabel}
+          </div>
+        </div>
       </Html>
 
       {isSelected ? (
@@ -186,14 +203,14 @@ function ModuleBox({
 
       <CabinetPanel
         args={[width - thickness * 2, height, thickness]}
-        color={isSelected ? SELECTED_COLOR : BACK_PANEL_COLOR}
+        color={BACK_PANEL_COLOR}
         edgeColor={edgeColor}
         position={[0, height / 2, -depth / 2 + thickness / 2]}
       />
 
       <CabinetPanel
         args={[width - thickness * 2, thickness, depth - thickness * 2]}
-        color={isSelected ? "#dbeafe" : SHELF_COLOR}
+        color={SHELF_COLOR}
         edgeColor={isSelected ? SELECTED_EDGE_COLOR : "#6b7280"}
         position={[0, height * 0.52, thickness / 2]}
       />
@@ -208,12 +225,14 @@ function ModuleBox({
   );
 }
 
-function SceneContent() {
+function SceneContent({ viewCommand }: { viewCommand: ViewCommand | null }) {
   const items = useConfiguratorStore((state) => state.items);
   const selectItem = useConfiguratorStore((state) => state.selectItem);
   const updatePosition = useConfiguratorStore((state) => state.updatePosition);
   const [dragState, setDragState] = useState<DragState | null>(null);
+  const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const dragRef = useRef<DragRefState | null>(null);
+  const lastViewCommandIdRef = useRef(0);
   const { camera, gl } = useThree();
   const groundPlane = useMemo(
     () => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
@@ -222,6 +241,7 @@ function SceneContent() {
   const planePointRef = useRef(new THREE.Vector3());
   const pointerRef = useRef(new THREE.Vector2());
   const raycasterRef = useRef(new THREE.Raycaster());
+  const verticalAxis = useMemo(() => new THREE.Vector3(0, 1, 0), []);
 
   const getGroundPoint = useCallback(
     (event: PointerEvent) => {
@@ -297,6 +317,35 @@ function SceneContent() {
     };
   }, [getGroundPoint, moveDraggedItem, stopDragging]);
 
+  useEffect(() => {
+    if (!viewCommand || viewCommand.id === lastViewCommandIdRef.current) return;
+
+    lastViewCommandIdRef.current = viewCommand.id;
+
+    const target = controlsRef.current?.target || new THREE.Vector3(0, 0, 0);
+    const cameraOffset = camera.position.clone().sub(target);
+
+    if (viewCommand.type === "zoom-in" || viewCommand.type === "zoom-out") {
+      const zoomFactor = viewCommand.type === "zoom-in" ? 0.82 : 1.18;
+      const nextDistance = THREE.MathUtils.clamp(
+        cameraOffset.length() * zoomFactor,
+        CAMERA_MIN_DISTANCE,
+        CAMERA_MAX_DISTANCE
+      );
+
+      cameraOffset.setLength(nextDistance);
+    }
+
+    if (viewCommand.type === "rotate") {
+      cameraOffset.applyAxisAngle(verticalAxis, CAMERA_ROTATION_STEP);
+    }
+
+    camera.position.copy(target).add(cameraOffset);
+    camera.lookAt(target);
+    camera.updateProjectionMatrix();
+    controlsRef.current?.update();
+  }, [camera, verticalAxis, viewCommand]);
+
   const handleDragStart = (
     item: ConfiguratorItem,
     event: ThreeEvent<PointerEvent>
@@ -370,7 +419,11 @@ function SceneContent() {
         />
       ))}
 
-      <OrbitControls makeDefault enabled={dragState === null} />
+      <OrbitControls
+        ref={controlsRef}
+        makeDefault
+        enabled={dragState === null}
+      />
     </>
   );
 }
@@ -378,8 +431,15 @@ function SceneContent() {
 export function ConfiguratorScene() {
   const locale = useConfiguratorStore((state) => state.locale);
   const selectItem = useConfiguratorStore((state) => state.selectItem);
+  const [viewCommand, setViewCommand] = useState<ViewCommand | null>(null);
+  const viewCommandIdRef = useRef(0);
 
   const t = dictionary[locale];
+
+  const sendViewCommand = (type: ViewCommandType) => {
+    viewCommandIdRef.current += 1;
+    setViewCommand({ id: viewCommandIdRef.current, type });
+  };
 
   return (
     <section className="relative h-full min-h-[520px] w-full overflow-hidden rounded-2xl border bg-gray-100 shadow-sm">
@@ -387,13 +447,58 @@ export function ConfiguratorScene() {
         {t.sceneHint}
       </div>
 
+      <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-2 rounded-lg bg-white/95 p-1 shadow-md ring-1 ring-black/10">
+        <MapControlButton
+          label="Zoom avanti"
+          onClick={() => sendViewCommand("zoom-in")}
+        >
+          <Plus size={18} aria-hidden="true" />
+        </MapControlButton>
+        <MapControlButton
+          label="Zoom indietro"
+          onClick={() => sendViewCommand("zoom-out")}
+        >
+          <Minus size={18} aria-hidden="true" />
+        </MapControlButton>
+        <MapControlButton
+          label="Ruota mappa"
+          onClick={() => sendViewCommand("rotate")}
+        >
+          <RotateCw size={18} aria-hidden="true" />
+        </MapControlButton>
+      </div>
+
       <Canvas
         camera={{ position: [3.5, 2.8, 4.2], fov: 45 }}
         shadows
         onPointerMissed={() => selectItem(null)}
       >
-        <SceneContent />
+        <SceneContent viewCommand={viewCommand} />
       </Canvas>
     </section>
+  );
+}
+
+type MapControlButtonProps = {
+  children: React.ReactNode;
+  label: string;
+  onClick: () => void;
+};
+
+function MapControlButton({
+  children,
+  label,
+  onClick,
+}: MapControlButtonProps) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      className="flex h-9 w-9 items-center justify-center rounded-md text-gray-800 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-600"
+    >
+      {children}
+    </button>
   );
 }

@@ -1,6 +1,9 @@
 "use client";
 
-import { useConfiguratorStore } from "@/store/configurator-store";
+import {
+  CONFIGURATOR_GRID_SIZE,
+  useConfiguratorStore,
+} from "@/store/configurator-store";
 import { dictionary } from "@/lib/i18n/dictionary";
 import {
   DEFAULT_MODULE_VARIANT,
@@ -35,6 +38,7 @@ export function ProductPropertiesPanel() {
     locale === "it"
       ? selectedItem.nameIt
       : selectedItem.nameEn || selectedItem.nameIt;
+  const positionStep = CONFIGURATOR_GRID_SIZE;
 
   return (
     <aside className="rounded-2xl border bg-white p-4 shadow-sm">
@@ -50,11 +54,12 @@ export function ProductPropertiesPanel() {
       </div>
 
       <div className="space-y-3">
-        <label className="block">
+        <label className="block" htmlFor="module-variant">
           <span className="mb-1 block text-sm font-medium text-gray-700">
             {t.variant}
           </span>
           <select
+            id="module-variant"
             value={selectedItem.variantKey || DEFAULT_MODULE_VARIANT}
             onChange={(event) =>
               updateVariant(
@@ -73,6 +78,7 @@ export function ProductPropertiesPanel() {
         </label>
 
         <NumberField
+          id="module-width"
           label={`${t.width} mm`}
           value={selectedItem.widthMm}
           onChange={(value) =>
@@ -81,6 +87,7 @@ export function ProductPropertiesPanel() {
         />
 
         <NumberField
+          id="module-height"
           label={`${t.height} mm`}
           value={selectedItem.heightMm}
           onChange={(value) =>
@@ -89,6 +96,7 @@ export function ProductPropertiesPanel() {
         />
 
         <NumberField
+          id="module-depth"
           label={`${t.depth} mm`}
           value={selectedItem.depthMm}
           onChange={(value) =>
@@ -102,16 +110,18 @@ export function ProductPropertiesPanel() {
           </p>
 
           <NumberField
+            id="module-position-x"
             label="Posizione X"
             value={Number(selectedItem.position[0].toFixed(2))}
-            step={0.05}
+            step={positionStep}
             onChange={(value) => moveItem(selectedItem.id, "x", value)}
           />
 
           <NumberField
+            id="module-position-z"
             label="Posizione Z"
             value={Number(selectedItem.position[2].toFixed(2))}
-            step={0.05}
+            step={positionStep}
             onChange={(value) => moveItem(selectedItem.id, "z", value)}
           />
 
@@ -122,7 +132,7 @@ export function ProductPropertiesPanel() {
                 moveItem(
                   selectedItem.id,
                   "x",
-                  Number((selectedItem.position[0] - 0.1).toFixed(2))
+                  Number((selectedItem.position[0] - positionStep).toFixed(2))
                 )
               }
               className="rounded-lg border px-3 py-2 text-xs font-medium hover:bg-gray-50"
@@ -136,7 +146,7 @@ export function ProductPropertiesPanel() {
                 moveItem(
                   selectedItem.id,
                   "x",
-                  Number((selectedItem.position[0] + 0.1).toFixed(2))
+                  Number((selectedItem.position[0] + positionStep).toFixed(2))
                 )
               }
               className="rounded-lg border px-3 py-2 text-xs font-medium hover:bg-gray-50"
@@ -150,7 +160,7 @@ export function ProductPropertiesPanel() {
                 moveItem(
                   selectedItem.id,
                   "z",
-                  Number((selectedItem.position[2] - 0.1).toFixed(2))
+                  Number((selectedItem.position[2] - positionStep).toFixed(2))
                 )
               }
               className="rounded-lg border px-3 py-2 text-xs font-medium hover:bg-gray-50"
@@ -164,7 +174,7 @@ export function ProductPropertiesPanel() {
                 moveItem(
                   selectedItem.id,
                   "z",
-                  Number((selectedItem.position[2] + 0.1).toFixed(2))
+                  Number((selectedItem.position[2] + positionStep).toFixed(2))
                 )
               }
               className="rounded-lg border px-3 py-2 text-xs font-medium hover:bg-gray-50"
@@ -195,19 +205,27 @@ export function ProductPropertiesPanel() {
 }
 
 type NumberFieldProps = {
+  id: string;
   label: string;
   value: number;
   step?: number;
   onChange: (value: number) => void;
 };
 
-function NumberField({ label, value, step = 1, onChange }: NumberFieldProps) {
+function NumberField({
+  id,
+  label,
+  value,
+  step = 1,
+  onChange,
+}: NumberFieldProps) {
   return (
-    <label className="block">
+    <label className="block" htmlFor={id}>
       <span className="mb-1 block text-sm font-medium text-gray-700">
         {label}
       </span>
       <input
+        id={id}
         type="number"
         value={value}
         step={step}

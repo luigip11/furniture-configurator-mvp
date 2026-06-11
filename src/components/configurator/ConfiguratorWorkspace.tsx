@@ -16,8 +16,8 @@ export function ConfiguratorWorkspace({ products }: ConfiguratorWorkspaceProps) 
   const [catalogCollapsed, setCatalogCollapsed] = useState(false);
 
   const gridClassName = catalogCollapsed
-    ? "grid min-w-0 flex-1 gap-4 transition-[grid-template-columns] lg:h-full lg:min-h-0 lg:grid-cols-[40px_minmax(0,1fr)_320px]"
-    : "grid min-w-0 flex-1 gap-4 transition-[grid-template-columns] lg:h-full lg:min-h-0 lg:grid-cols-[280px_minmax(0,1fr)_320px]";
+    ? "grid min-w-0 flex-1 gap-4 transition-[grid-template-columns] lg:h-full lg:min-h-0 lg:grid-cols-[40px_minmax(0,1fr)_300px]"
+    : "grid min-w-0 flex-1 gap-4 transition-[grid-template-columns] lg:h-full lg:min-h-0 lg:grid-cols-[260px_minmax(0,1fr)_300px]";
 
   return (
     <div className={gridClassName}>
@@ -43,7 +43,7 @@ export function ConfiguratorWorkspace({ products }: ConfiguratorWorkspaceProps) 
       </div>
 
       <div className="min-h-[520px] min-w-0 lg:h-full lg:min-h-0">
-        <ConfiguratorScene />
+        <ConfiguratorScene compactHint={catalogCollapsed} />
       </div>
 
       <div className="min-w-0 space-y-4 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-1">

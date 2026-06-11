@@ -30,6 +30,30 @@ export type ModuleVariantKey =
   | "one_visible_one_internal"
   | "two_internal_sides";
 
+export type SceneMode = "open" | "wall" | "front";
+
+export const SCENE_MODE_OPTIONS = [
+  {
+    key: "open",
+    labelIt: "Aperta",
+    labelEn: "Open",
+  },
+  {
+    key: "wall",
+    labelIt: "Filo parete",
+    labelEn: "Wall aligned",
+  },
+  {
+    key: "front",
+    labelIt: "Filo fronte",
+    labelEn: "Front aligned",
+  },
+] satisfies {
+  key: SceneMode;
+  labelIt: string;
+  labelEn: string;
+}[];
+
 export const DEFAULT_MODULE_VARIANT: ModuleVariantKey = "two_visible_sides";
 
 export const MODULE_VARIANT_OPTIONS = [

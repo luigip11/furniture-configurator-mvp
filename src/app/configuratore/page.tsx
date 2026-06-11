@@ -23,7 +23,7 @@ export default async function ConfiguratorPage() {
 
   return (
     <main className="min-h-screen bg-gray-100 p-4 text-gray-950 md:p-6 lg:h-screen lg:overflow-hidden">
-      <div className="mx-auto flex min-h-0 max-w-7xl flex-col lg:h-full">
+      <div className="mx-auto flex min-h-0 w-full flex-col lg:h-full">
         <div className="shrink-0">
           <ConfiguratorHeader />
         </div>

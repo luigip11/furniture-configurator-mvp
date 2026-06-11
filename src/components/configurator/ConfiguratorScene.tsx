@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, ThreeEvent, useThree } from "@react-three/fiber";
-import { Edges, Grid, Html, OrbitControls } from "@react-three/drei";
-import { Eye, EyeOff, Minus, Plus, RotateCw } from "lucide-react";
+import { Edges, Grid, Html, Line, OrbitControls } from "@react-three/drei";
+import { Eye, EyeOff, Minus, Plus, RotateCw, Trash2 } from "lucide-react";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import {
@@ -11,9 +11,15 @@ import {
   useConfiguratorStore,
 } from "@/store/configurator-store";
 import {
+  CONFIGURATOR_SCENE_SCALE,
+  getItemFootprintMm,
+} from "@/store/configurator-calculations";
+import {
   ConfiguratorItem,
   DEFAULT_MODULE_VARIANT,
   ModuleVariantKey,
+  SCENE_MODE_OPTIONS,
+  SceneMode,
 } from "@/types/configurator";
 import { dictionary } from "@/lib/i18n/dictionary";
 
@@ -50,6 +56,12 @@ type PanelProps = {
   edgeColor?: string;
   position: [number, number, number];
 };
+
+type DimensionAxis = "x" | "y" | "z";
+
+type DimensionDirection = "x+" | "x-" | "y+" | "y-" | "z+" | "z-";
+
+type DimensionPoint = [number, number, number];
 
 const SCENE_SCALE = 700;
 const PANEL_THICKNESS = 0.04;
@@ -112,7 +124,6 @@ function ModuleBox({
   const isSelected = selectedItemId === item.id;
   const name = locale === "it" ? item.nameIt : item.nameEn || item.nameIt;
   const variantKey = item.variantKey || DEFAULT_MODULE_VARIANT;
-  const dimensionsLabel = `${item.widthMm} x ${item.heightMm} x ${item.depthMm} mm`;
 
   const width = item.widthMm / SCENE_SCALE;
   const height = item.heightMm / SCENE_SCALE;
@@ -146,13 +157,20 @@ function ModuleBox({
           position={[0, height + 0.34, 0]}
           style={{ pointerEvents: "none" }}
         >
-          <div className={labelClassName}>
-            <div>{name}</div>
-            <div className="text-[10px] font-normal opacity-80">
-              {dimensionsLabel}
-            </div>
-          </div>
+          <div className={labelClassName}>{name}</div>
         </Html>
+      ) : null}
+
+      {labelsVisible ? (
+        <ModuleDimensions
+          depth={depth}
+          depthMm={item.depthMm}
+          height={height}
+          heightMm={item.heightMm}
+          isSelected={isSelected}
+          width={width}
+          widthMm={item.widthMm}
+        />
       ) : null}
 
       {isSelected ? (
@@ -230,11 +248,170 @@ function ModuleBox({
   );
 }
 
+function ModuleDimensions({
+  depth,
+  depthMm,
+  height,
+  heightMm,
+  isSelected,
+  width,
+  widthMm,
+}: {
+  depth: number;
+  depthMm: number;
+  height: number;
+  heightMm: number;
+  isSelected: boolean;
+  width: number;
+  widthMm: number;
+}) {
+  const color = isSelected ? SELECTED_EDGE_COLOR : "#374151";
+  const frontOffset = depth / 2 + 0.18;
+  const sideOffset = width / 2 + 0.18;
+  const heightX = -width / 2 - 0.16;
+  const heightZ = -depth / 2 - 0.12;
+
+  return (
+    <group>
+      <DimensionLine
+        axis="x"
+        color={color}
+        end={[width / 2, 0.06, frontOffset]}
+        endDirection="x+"
+        label={`L ${widthMm} mm`}
+        labelPosition={[0, 0.16, frontOffset]}
+        start={[-width / 2, 0.06, frontOffset]}
+        startDirection="x-"
+      />
+
+      <DimensionLine
+        axis="z"
+        color={color}
+        end={[sideOffset, 0.06, depth / 2]}
+        endDirection="z+"
+        label={`P ${depthMm} mm`}
+        labelPosition={[sideOffset + 0.1, 0.16, 0]}
+        start={[sideOffset, 0.06, -depth / 2]}
+        startDirection="z-"
+      />
+
+      <DimensionLine
+        axis="y"
+        color={color}
+        end={[heightX, height, heightZ]}
+        endDirection="y+"
+        label={`A ${heightMm} mm`}
+        labelPosition={[heightX - 0.08, height / 2, heightZ]}
+        start={[heightX, 0, heightZ]}
+        startDirection="y-"
+      />
+    </group>
+  );
+}
+
+function DimensionLine({
+  axis,
+  color,
+  end,
+  endDirection,
+  label,
+  labelPosition,
+  start,
+  startDirection,
+}: {
+  axis: DimensionAxis;
+  color: string;
+  end: DimensionPoint;
+  endDirection: DimensionDirection;
+  label: string;
+  labelPosition: DimensionPoint;
+  start: DimensionPoint;
+  startDirection: DimensionDirection;
+}) {
+  return (
+    <group>
+      <Line color={color} lineWidth={1.4} points={[start, end]} />
+      <DimensionExtension axis={axis} color={color} position={start} />
+      <DimensionExtension axis={axis} color={color} position={end} />
+      <DimensionArrow
+        color={color}
+        direction={startDirection}
+        position={start}
+      />
+      <DimensionArrow color={color} direction={endDirection} position={end} />
+      <Html
+        center
+        distanceFactor={8}
+        position={labelPosition}
+        style={{ pointerEvents: "none" }}
+      >
+        <span className="whitespace-nowrap px-1 text-[10px] font-semibold text-gray-900 drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)]">
+          {label}
+        </span>
+      </Html>
+    </group>
+  );
+}
+
+function DimensionExtension({
+  axis,
+  color,
+  position,
+}: {
+  axis: DimensionAxis;
+  color: string;
+  position: DimensionPoint;
+}) {
+  const tickLength = 0.08;
+  const halfTick = tickLength / 2;
+  const points: [DimensionPoint, DimensionPoint] =
+    axis === "y"
+      ? [
+          [position[0] - halfTick, position[1], position[2]],
+          [position[0] + halfTick, position[1], position[2]],
+        ]
+      : [
+          [position[0], position[1], position[2] - halfTick],
+          [position[0], position[1], position[2] + halfTick],
+        ];
+
+  return <Line color={color} lineWidth={1.2} points={points} />;
+}
+
+function DimensionArrow({
+  color,
+  direction,
+  position,
+}: {
+  color: string;
+  direction: DimensionDirection;
+  position: DimensionPoint;
+}) {
+  return (
+    <mesh position={position} rotation={getArrowRotation(direction)}>
+      <coneGeometry args={[0.025, 0.075, 12]} />
+      <meshBasicMaterial color={color} />
+    </mesh>
+  );
+}
+
+function getArrowRotation(direction: DimensionDirection) {
+  if (direction === "x+") return [0, 0, -Math.PI / 2] as const;
+  if (direction === "x-") return [0, 0, Math.PI / 2] as const;
+  if (direction === "y-") return [0, 0, Math.PI] as const;
+  if (direction === "z+") return [Math.PI / 2, 0, 0] as const;
+  if (direction === "z-") return [-Math.PI / 2, 0, 0] as const;
+
+  return [0, 0, 0] as const;
+}
+
 function SceneContent({
   labelsVisible,
+  sceneMode,
   viewCommand,
 }: {
   labelsVisible: boolean;
+  sceneMode: SceneMode;
   viewCommand: ViewCommand | null;
 }) {
   const items = useConfiguratorStore((state) => state.items);
@@ -401,6 +578,8 @@ function SceneContent({
         fadeStrength={1}
       />
 
+      {sceneMode !== "open" ? <SceneAlignmentGuide sceneMode={sceneMode} /> : null}
+
       <mesh
         position={[0, -0.01, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
@@ -440,15 +619,79 @@ function SceneContent({
   );
 }
 
-export function ConfiguratorScene() {
+function SceneAlignmentGuide({ sceneMode }: { sceneMode: SceneMode }) {
+  if (sceneMode === "wall") {
+    return (
+      <group>
+        <mesh position={[0, 1.05, 0]}>
+          <planeGeometry args={[12, 2.1]} />
+          <meshStandardMaterial
+            color="#93c5fd"
+            opacity={0.18}
+            transparent
+            roughness={0.8}
+          />
+          <Edges color="#60a5fa" />
+        </mesh>
+        <mesh position={[0, 0.02, 0]}>
+          <boxGeometry args={[12, 0.035, 0.035]} />
+          <meshStandardMaterial color="#2563eb" />
+        </mesh>
+      </group>
+    );
+  }
+
+  return (
+    <mesh position={[0, 0.02, 0]}>
+      <boxGeometry args={[12, 0.035, 0.045]} />
+      <meshStandardMaterial color="#0f766e" />
+    </mesh>
+  );
+}
+
+function SceneHint({ compact, text }: { compact: boolean; text: string }) {
+  const sentences = text
+    .split(".")
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+
+  if (compact || sentences.length < 2) {
+    return (
+      <p className="absolute left-4 top-4 z-10 whitespace-nowrap text-xs font-medium text-gray-600 drop-shadow-[0_1px_1px_rgba(255,255,255,0.95)]">
+        {sentences[0] ? `${sentences[0]}.` : text}
+      </p>
+    );
+  }
+
+  return (
+    <p className="absolute left-4 top-4 z-10 max-w-[220px] text-xs font-medium leading-5 text-gray-600 drop-shadow-[0_1px_1px_rgba(255,255,255,0.95)]">
+      <span className="block">{sentences[0]}.</span>
+      <span className="block">{sentences.slice(1).join(". ")}.</span>
+    </p>
+  );
+}
+
+type ConfiguratorSceneProps = {
+  compactHint?: boolean;
+};
+
+export function ConfiguratorScene({
+  compactHint = false,
+}: ConfiguratorSceneProps) {
   const locale = useConfiguratorStore((state) => state.locale);
   const items = useConfiguratorStore((state) => state.items);
+  const sceneMode = useConfiguratorStore((state) => state.sceneMode);
+  const selectedItemId = useConfiguratorStore((state) => state.selectedItemId);
+  const setSceneMode = useConfiguratorStore((state) => state.setSceneMode);
   const selectItem = useConfiguratorStore((state) => state.selectItem);
+  const removeItem = useConfiguratorStore((state) => state.removeItem);
   const [labelsVisible, setLabelsVisible] = useState(true);
   const [viewCommand, setViewCommand] = useState<ViewCommand | null>(null);
   const viewCommandIdRef = useRef(0);
 
   const t = dictionary[locale];
+  const selectedItem = items.find((item) => item.id === selectedItemId);
+  const footprintSummary = useMemo(() => getFootprintSummary(items), [items]);
 
   const sendViewCommand = (type: ViewCommandType) => {
     viewCommandIdRef.current += 1;
@@ -457,25 +700,57 @@ export function ConfiguratorScene() {
 
   return (
     <section className="configurator-scene relative h-[520px] w-full overflow-hidden rounded-2xl border bg-gray-100 shadow-sm lg:h-full lg:min-h-0">
-      <div className="absolute left-4 top-4 z-10 rounded-xl bg-white/90 px-3 py-2 text-xs text-gray-600 shadow-sm">
-        {t.sceneHint}
+      <SceneHint compact={compactHint} text={t.sceneHint} />
+
+      <div className="absolute left-1/2 top-4 z-10 flex -translate-x-1/2 rounded-lg bg-white/90 p-1 shadow-sm ring-1 ring-black/10 backdrop-blur-sm">
+        {SCENE_MODE_OPTIONS.map((modeOption) => (
+          <button
+            key={modeOption.key}
+            type="button"
+            aria-pressed={sceneMode === modeOption.key}
+            onClick={() => setSceneMode(modeOption.key)}
+            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+              sceneMode === modeOption.key
+                ? "bg-gray-900 text-white shadow-sm"
+                : "text-gray-600 hover:bg-gray-100"
+            }`}
+          >
+            {locale === "it" ? modeOption.labelIt : modeOption.labelEn}
+          </button>
+        ))}
       </div>
 
       {items.length > 0 ? (
-        <button
-          type="button"
-          aria-pressed={labelsVisible}
-          aria-label={labelsVisible ? "Nascondi etichette" : "Mostra etichette"}
-          title={labelsVisible ? "Nascondi etichette" : "Mostra etichette"}
-          onClick={() => setLabelsVisible((visible) => !visible)}
-          className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-lg bg-white/90 text-gray-800 shadow-sm ring-1 ring-black/10 transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-        >
-          {labelsVisible ? (
-            <Eye size={18} aria-hidden="true" />
-          ) : (
-            <EyeOff size={18} aria-hidden="true" />
-          )}
-        </button>
+        <div className="absolute right-4 top-4 z-10 flex gap-2">
+          {selectedItem ? (
+            <button
+              type="button"
+              aria-label={`Rimuovi ${selectedItem.nameIt}`}
+              title="Rimuovi elemento selezionato"
+              onClick={() => removeItem(selectedItem.id)}
+              className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-700"
+            >
+              <Trash2 size={18} aria-hidden="true" />
+            </button>
+          ) : null}
+
+          <button
+            type="button"
+            aria-pressed={labelsVisible}
+            aria-label={
+              labelsVisible ? "Nascondi etichette" : "Mostra etichette"
+            }
+            title={labelsVisible ? "Nascondi etichette" : "Mostra etichette"}
+            onClick={() => setLabelsVisible((visible) => !visible)}
+            className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/90 text-gray-800 shadow-sm ring-1 ring-black/10 transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+          >
+            {labelsVisible ? (
+              <Eye size={18} aria-hidden="true" />
+            ) : (
+              <EyeOff size={18} aria-hidden="true" />
+            )}
+          </button>
+        </div>
       ) : null}
 
       <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-2 rounded-lg bg-white/95 p-1 shadow-md ring-1 ring-black/10">
@@ -499,6 +774,24 @@ export function ConfiguratorScene() {
         </MapControlButton>
       </div>
 
+      {sceneMode !== "open" && footprintSummary.count > 0 ? (
+        <div className="absolute bottom-4 left-1/2 z-10 w-[min(520px,calc(100%-120px))] -translate-x-1/2 rounded-xl bg-white/92 p-3 shadow-md ring-1 ring-black/10 backdrop-blur-sm">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-gray-900">
+              {sceneMode === "wall" ? "Ingombro filo parete" : "Ingombro filo fronte"}
+            </p>
+            <p className="text-xs font-medium text-gray-500">
+              {footprintSummary.count} moduli
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <FootprintValue label="LARGHEZZA" value={footprintSummary.widthMm} />
+            <FootprintValue label="ALTEZZA" value={footprintSummary.heightMm} />
+            <FootprintValue label="PROFONDITÀ" value={footprintSummary.depthMm} />
+          </div>
+        </div>
+      ) : null}
+
       <Canvas
         camera={{ position: [3.5, 2.8, 4.2], fov: 45 }}
         onCreated={({ gl }) => {
@@ -519,9 +812,69 @@ export function ConfiguratorScene() {
         style={{ height: "100%", width: "100%" }}
         onPointerMissed={() => selectItem(null)}
       >
-        <SceneContent labelsVisible={labelsVisible} viewCommand={viewCommand} />
+        <SceneContent
+          labelsVisible={labelsVisible}
+          sceneMode={sceneMode}
+          viewCommand={viewCommand}
+        />
       </Canvas>
     </section>
+  );
+}
+
+type FootprintSummary = {
+  count: number;
+  depthMm: number;
+  heightMm: number;
+  widthMm: number;
+};
+
+function getFootprintSummary(items: ConfiguratorItem[]): FootprintSummary {
+  if (items.length === 0) {
+    return {
+      count: 0,
+      depthMm: 0,
+      heightMm: 0,
+      widthMm: 0,
+    };
+  }
+
+  const boxes = items.map((item) => {
+    const footprint = getItemFootprintMm(item);
+    const centerX = item.position[0] * CONFIGURATOR_SCENE_SCALE;
+    const centerZ = item.position[2] * CONFIGURATOR_SCENE_SCALE;
+
+    return {
+      heightMm: item.heightMm,
+      maxX: centerX + footprint.widthMm / 2,
+      maxZ: centerZ + footprint.depthMm / 2,
+      minX: centerX - footprint.widthMm / 2,
+      minZ: centerZ - footprint.depthMm / 2,
+    };
+  });
+
+  return {
+    count: items.length,
+    depthMm: Math.round(
+      Math.max(...boxes.map((box) => box.maxZ)) -
+        Math.min(...boxes.map((box) => box.minZ))
+    ),
+    heightMm: Math.round(Math.max(...boxes.map((box) => box.heightMm))),
+    widthMm: Math.round(
+      Math.max(...boxes.map((box) => box.maxX)) -
+        Math.min(...boxes.map((box) => box.minX))
+    ),
+  };
+}
+
+function FootprintValue({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg bg-gray-100 px-2 py-2">
+      <p className="text-[10px] font-semibold uppercase text-gray-500">
+        {label}
+      </p>
+      <p className="text-sm font-bold text-gray-950">{value} mm</p>
+    </div>
   );
 }
 

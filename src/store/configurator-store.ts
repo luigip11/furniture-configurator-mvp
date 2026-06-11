@@ -5,9 +5,11 @@ import {
   Locale,
   ModuleVariantKey,
   Product,
+  SceneMode,
 } from "@/types/configurator";
 import {
   getItemSceneWidth,
+  getAlignedPositionForSceneMode,
   getNextPosition,
   normalizeRotation,
   snapPosition,
@@ -18,9 +20,11 @@ export { CONFIGURATOR_GRID_SIZE, snapToGrid } from "@/store/configurator-calcula
 type ConfiguratorStore = {
   locale: Locale;
   items: ConfiguratorItem[];
+  sceneMode: SceneMode;
   selectedItemId: string | null;
 
   setLocale: (locale: Locale) => void;
+  setSceneMode: (sceneMode: SceneMode) => void;
   addProduct: (product: Product) => void;
   selectItem: (itemId: string | null) => void;
   updateItem: (
@@ -44,9 +48,20 @@ type ConfiguratorStore = {
 export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
   locale: "it",
   items: [],
+  sceneMode: "open",
   selectedItemId: null,
 
   setLocale: (locale) => set({ locale }),
+
+  setSceneMode: (sceneMode) => {
+    set({
+      sceneMode,
+      items: get().items.map((item) => ({
+        ...item,
+        position: getAlignedPositionForSceneMode(item, sceneMode),
+      })),
+    });
+  },
 
   addProduct: (product) => {
     const currentItems = get().items;
@@ -66,10 +81,14 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
       variantKey: DEFAULT_MODULE_VARIANT,
       color: "#d8d3c7",
     };
+    const alignedItem: ConfiguratorItem = {
+      ...item,
+      position: getAlignedPositionForSceneMode(item, get().sceneMode),
+    };
 
     set({
-      items: [...currentItems, item],
-      selectedItemId: item.id,
+      items: [...currentItems, alignedItem],
+      selectedItemId: alignedItem.id,
     });
   },
 
@@ -79,15 +98,23 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
 
   updateItem: (itemId, data) => {
     set({
-      items: get().items.map((item) =>
-        item.id === itemId
-          ? {
-              ...item,
-              ...data,
-              position: data.position ? snapPosition(data.position) : item.position,
-            }
-          : item
-      ),
+      items: get().items.map((item) => {
+        if (item.id !== itemId) return item;
+
+        const updatedItem = {
+          ...item,
+          ...data,
+          position: data.position ? snapPosition(data.position) : item.position,
+        };
+
+        return {
+          ...updatedItem,
+          position: getAlignedPositionForSceneMode(
+            updatedItem,
+            get().sceneMode
+          ),
+        };
+      }),
     });
   },
 
@@ -102,7 +129,15 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
   updatePosition: (itemId, position) => {
     set({
       items: get().items.map((item) =>
-        item.id === itemId ? { ...item, position: snapPosition(position) } : item
+        item.id === itemId
+          ? {
+              ...item,
+              position: getAlignedPositionForSceneMode(
+                { ...item, position: snapPosition(position) },
+                get().sceneMode
+              ),
+            }
+          : item
       ),
     });
   },
@@ -121,20 +156,35 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
         sourceItem.position[2],
       ]),
     };
+    const alignedDuplicatedItem = {
+      ...duplicatedItem,
+      position: getAlignedPositionForSceneMode(duplicatedItem, get().sceneMode),
+    };
 
     set({
-      items: [...get().items, duplicatedItem],
-      selectedItemId: duplicatedItem.id,
+      items: [...get().items, alignedDuplicatedItem],
+      selectedItemId: alignedDuplicatedItem.id,
     });
   },
 
   rotateItem: (itemId) => {
     set({
-      items: get().items.map((item) =>
-        item.id === itemId
-          ? { ...item, rotationY: normalizeRotation((item.rotationY || 0) + 90) }
-          : item
-      ),
+      items: get().items.map((item) => {
+        if (item.id !== itemId) return item;
+
+        const rotatedItem = {
+          ...item,
+          rotationY: normalizeRotation((item.rotationY || 0) + 90),
+        };
+
+        return {
+          ...rotatedItem,
+          position: getAlignedPositionForSceneMode(
+            rotatedItem,
+            get().sceneMode
+          ),
+        };
+      }),
     });
   },
 
@@ -149,8 +199,14 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
           ...item,
           position:
             axis === "x"
-              ? snapPosition([value, y, z])
-              : snapPosition([x, y, value]),
+              ? getAlignedPositionForSceneMode(
+                  { ...item, position: snapPosition([value, y, z]) },
+                  get().sceneMode
+                )
+              : getAlignedPositionForSceneMode(
+                  { ...item, position: snapPosition([x, y, value]) },
+                  get().sceneMode
+                ),
         };
       }),
     });

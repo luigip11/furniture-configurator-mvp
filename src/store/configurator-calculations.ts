@@ -1,6 +1,7 @@
-import type { ConfiguratorItem } from "@/types/configurator";
+import type { ConfiguratorItem, SceneMode } from "@/types/configurator";
 
 export const CONFIGURATOR_GRID_SIZE = 0.25;
+export const CONFIGURATOR_SCENE_SCALE = 700;
 
 // Arrotonda un valore alla griglia del configuratore mantenendo precisione stabile.
 export function snapToGrid(value: number) {
@@ -25,7 +26,44 @@ export function snapPosition(
 
 // Converte la larghezza millimetrica nella scala usata dalla scena 3D.
 export function getItemSceneWidth(item: Pick<ConfiguratorItem, "widthMm">) {
-  return item.widthMm / 700;
+  return item.widthMm / CONFIGURATOR_SCENE_SCALE;
+}
+
+export function getItemFootprintMm(
+  item: Pick<ConfiguratorItem, "widthMm" | "depthMm" | "rotationY">
+) {
+  const normalizedRotation = normalizeRotation(item.rotationY || 0);
+  const rotated = normalizedRotation === 90 || normalizedRotation === 270;
+
+  return {
+    widthMm: rotated ? item.depthMm : item.widthMm,
+    depthMm: rotated ? item.widthMm : item.depthMm,
+  };
+}
+
+export function getItemFootprintScene(
+  item: Pick<ConfiguratorItem, "widthMm" | "depthMm" | "rotationY">
+) {
+  const footprint = getItemFootprintMm(item);
+
+  return {
+    width: footprint.widthMm / CONFIGURATOR_SCENE_SCALE,
+    depth: footprint.depthMm / CONFIGURATOR_SCENE_SCALE,
+  };
+}
+
+export function getAlignedPositionForSceneMode(
+  item: ConfiguratorItem,
+  sceneMode: SceneMode
+): [number, number, number] {
+  if (sceneMode === "open") return item.position;
+
+  const footprint = getItemFootprintScene(item);
+  const [x, y] = item.position;
+  const z =
+    sceneMode === "wall" ? footprint.depth / 2 : -footprint.depth / 2;
+
+  return snapPosition([x, y, z]);
 }
 
 // Calcola la prossima posizione libera affiancando il nuovo modulo a quelli esistenti.
@@ -38,7 +76,7 @@ export function getNextPosition(
   const rightEdge = Math.max(
     ...items.map((item) => item.position[0] + getItemSceneWidth(item) / 2)
   );
-  const width = widthMm / 700;
+  const width = widthMm / CONFIGURATOR_SCENE_SCALE;
 
   return [snapToGrid(rightEdge + width / 2), 0, 0];
 }

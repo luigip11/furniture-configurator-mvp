@@ -3,8 +3,11 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Box,
   Eye,
   EyeOff,
+  FileBox,
+  ImageIcon,
   Loader2,
   Pencil,
   Plus,
@@ -176,12 +179,22 @@ export function ProductAdmin({
 
   return (
     <section className="mx-auto grid max-w-7xl gap-5 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:px-8">
-      <div className="min-w-0 rounded-lg border border-gray-200 bg-white shadow-sm">
-        <div className="border-b border-gray-200 p-4">
-          <h2 className="text-lg font-semibold">Lista prodotti</h2>
-          <p className="mt-1 text-sm text-gray-500">
-            {products.length} prodotti in catalogo
-          </p>
+      <div className="min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-gray-200 bg-gray-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">Lista prodotti</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              {products.length} prodotti in catalogo
+            </p>
+          </div>
+          <div className="flex gap-2 text-xs font-medium">
+            <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-emerald-700 ring-1 ring-emerald-100">
+              {products.filter((product) => product.is_published).length} online
+            </span>
+            <span className="rounded-full bg-gray-100 px-3 py-1.5 text-gray-600 ring-1 ring-gray-200">
+              {products.filter((product) => !product.is_published).length} bozze
+            </span>
+          </div>
         </div>
 
         {products.length === 0 ? (
@@ -194,46 +207,75 @@ export function ProductAdmin({
                 : null;
 
               return (
-                <article key={product.id} className="p-4">
+                <article
+                  key={product.id}
+                  className="group relative p-4 transition hover:bg-gray-50/80"
+                >
+                  <span
+                    className={`absolute left-0 top-4 h-[calc(100%-2rem)] w-1 rounded-r-full ${
+                      product.is_published ? "bg-emerald-400" : "bg-gray-300"
+                    }`}
+                  />
                   <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-base font-semibold">
+                        <h3 className="text-base font-semibold transition group-hover:text-gray-700">
                           {product.name_it}
                         </h3>
                         <span
                           className={
                             product.is_published
-                              ? "rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700"
-                              : "rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600"
+                              ? "inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-100"
+                              : "inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 ring-1 ring-gray-200"
                           }
                         >
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full ${
+                              product.is_published
+                                ? "bg-emerald-500"
+                                : "bg-gray-400"
+                            }`}
+                          />
                           {product.is_published ? "Pubblicato" : "Bozza"}
                         </span>
                       </div>
 
-                      <div className="mt-2 grid gap-1 text-sm text-gray-600 sm:grid-cols-2">
-                        <p>Nome EN: {product.name_en || "-"}</p>
-                        <p>Codice: {product.code || "-"}</p>
-                        <p>Categoria: {categoryName || "-"}</p>
+                      <div className="mt-3 grid gap-2 text-sm text-gray-600 sm:grid-cols-2">
+                        <ProductDetail label="Nome EN" value={product.name_en || "-"} />
+                        <ProductDetail label="Codice" value={product.code || "-"} />
+                        <ProductDetail label="Categoria" value={categoryName || "-"} />
                         <p>
-                          Dimensioni: {product.width_mm} x {product.height_mm} x{" "}
+                          <span className="font-medium text-gray-500">
+                            Dimensioni:
+                          </span>{" "}
+                          {product.width_mm} x {product.height_mm} x{" "}
                           {product.depth_mm} mm
                         </p>
-                        <p>Spessore: {product.thickness_mm ?? "-"} mm</p>
                         <p>
-                          Prezzo:{" "}
+                          <span className="font-medium text-gray-500">
+                            Spessore:
+                          </span>{" "}
+                          {product.thickness_mm ?? "-"} mm
+                        </p>
+                        <p>
+                          <span className="font-medium text-gray-500">
+                            Prezzo:
+                          </span>{" "}
                           {product.price === null || product.price === undefined
                             ? "-"
                             : `${product.price}`}
                         </p>
                       </div>
 
-                      <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-500">
-                        {product.preview_image_url ? <span>Preview</span> : null}
-                        {product.model_url ? <span>Modello 3D</span> : null}
+                      <div className="mt-3 flex flex-wrap gap-2 text-xs font-medium text-gray-500">
+                        {product.preview_image_url ? (
+                          <ResourceChip icon={ImageIcon} label="Preview" />
+                        ) : null}
+                        {product.model_url ? (
+                          <ResourceChip icon={Box} label="Modello 3D" />
+                        ) : null}
                         {product.technical_file_url ? (
-                          <span>File tecnico</span>
+                          <ResourceChip icon={FileBox} label="File tecnico" />
                         ) : null}
                       </div>
                     </div>
@@ -242,7 +284,7 @@ export function ProductAdmin({
                       <button
                         type="button"
                         onClick={() => togglePublished(product)}
-                        className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-700 transition hover:border-gray-300 hover:bg-gray-50"
+                        className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition hover:border-gray-300 hover:bg-gray-50"
                       >
                         {product.is_published ? (
                           <EyeOff className="h-4 w-4" aria-hidden="true" />
@@ -254,7 +296,7 @@ export function ProductAdmin({
                       <button
                         type="button"
                         onClick={() => startEdit(product)}
-                        className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-700 transition hover:border-gray-300 hover:bg-gray-50"
+                        className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition hover:border-gray-300 hover:bg-gray-50"
                       >
                         <Pencil className="h-4 w-4" aria-hidden="true" />
                         Modifica
@@ -278,9 +320,9 @@ export function ProductAdmin({
 
       <form
         onSubmit={handleSubmit}
-        className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+        className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm lg:sticky lg:top-4 lg:self-start"
       >
-        <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="-mx-4 -mt-4 mb-4 flex items-start justify-between gap-3 rounded-t-2xl border-b border-gray-200 bg-gray-50 px-4 py-4">
           <div>
             <h2 className="text-lg font-semibold">
               {editingProduct ? "Modifica prodotto" : "Nuovo prodotto"}
@@ -295,7 +337,7 @@ export function ProductAdmin({
             <button
               type="button"
               onClick={resetForm}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
             >
               <X className="h-4 w-4" aria-hidden="true" />
               Annulla
@@ -315,7 +357,7 @@ export function ProductAdmin({
             <select
               value={form.category_id}
               onChange={(event) => updateForm("category_id", event.target.value)}
-              className="mt-1 h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none transition focus:border-gray-950"
+              className="mt-1 h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-100"
             >
               <option value="">Senza categoria</option>
               {categories.map((category) => (
@@ -398,7 +440,7 @@ export function ProductAdmin({
             type="url"
           />
 
-          <label className="flex items-center gap-3 rounded-lg border border-gray-200 p-3 text-sm font-medium text-gray-700">
+          <label className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm font-medium text-gray-700">
             <input
               type="checkbox"
               checked={form.is_published}
@@ -413,7 +455,7 @@ export function ProductAdmin({
           <button
             type="submit"
             disabled={isSaving}
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-gray-950 px-4 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-400"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gray-700 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-400"
           >
             {isSaving ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -427,6 +469,28 @@ export function ProductAdmin({
         </div>
       </form>
     </section>
+  );
+}
+
+function ProductDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <p>
+      <span className="font-medium text-gray-500">{label}:</span> {value}
+    </p>
+  );
+}
+
+type ResourceChipProps = {
+  icon: typeof ImageIcon;
+  label: string;
+};
+
+function ResourceChip({ icon: Icon, label }: ResourceChipProps) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-gray-600 ring-1 ring-gray-200">
+      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+      {label}
+    </span>
   );
 }
 
@@ -453,7 +517,7 @@ function TextField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         required={required}
-        className="mt-1 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none transition focus:border-gray-950"
+        className="mt-1 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-100"
       />
     </label>
   );
@@ -484,7 +548,7 @@ function NumberField({
         required={required}
         min="0"
         step={step}
-        className="mt-1 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none transition focus:border-gray-950"
+        className="mt-1 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-100"
       />
     </label>
   );

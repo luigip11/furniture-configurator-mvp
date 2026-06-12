@@ -12,6 +12,10 @@ import {
   MODULE_VARIANT_OPTIONS,
   ModuleVariantKey,
 } from "@/types/configurator";
+import {
+  getAvailableModuleVariants,
+  hasConfigurableModuleVariants,
+} from "@/lib/configurator/module-technical-catalog";
 
 export function ProductPropertiesPanel() {
   const [propertiesExpanded, setPropertiesExpanded] = useState(true);
@@ -54,6 +58,8 @@ export function ProductPropertiesPanel() {
       : selectedItem.nameEn || selectedItem.nameIt;
   const positionStep = CONFIGURATOR_GRID_SIZE;
   const zMovementDisabled = sceneMode !== "open";
+  const availableVariants = getAvailableModuleVariants(selectedItem.code);
+  const variantConfigurable = hasConfigurableModuleVariants(selectedItem.code);
   const positionButtonClassName =
     "rounded-lg border px-3 py-2 text-xs font-medium transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 disabled:hover:bg-gray-100";
 
@@ -79,28 +85,37 @@ export function ProductPropertiesPanel() {
           </div>
 
           <div className="space-y-3">
-            <label className="block" htmlFor="module-variant">
-              <span className="mb-1 block text-sm font-medium text-gray-700">
-                {t.variant}
-              </span>
-              <select
-                id="module-variant"
-                value={selectedItem.variantKey || DEFAULT_MODULE_VARIANT}
-                onChange={(event) =>
-                  updateVariant(
-                    selectedItem.id,
-                    event.target.value as ModuleVariantKey
-                  )
-                }
-                className="mb-2 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-gray-500"
-              >
-                {MODULE_VARIANT_OPTIONS.map((variant) => (
-                  <option key={variant.key} value={variant.key}>
-                    {locale === "it" ? variant.labelIt : variant.labelEn}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {variantConfigurable ? (
+              <label className="block" htmlFor="module-variant">
+                <span className="mb-1 block text-sm font-medium text-gray-700">
+                  {t.variant}
+                </span>
+                <select
+                  id="module-variant"
+                  value={selectedItem.variantKey || DEFAULT_MODULE_VARIANT}
+                  onChange={(event) =>
+                    updateVariant(
+                      selectedItem.id,
+                      event.target.value as ModuleVariantKey
+                    )
+                  }
+                  className="mb-2 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-gray-500"
+                >
+                  {MODULE_VARIANT_OPTIONS.filter((variant) =>
+                    availableVariants.includes(variant.key)
+                  ).map((variant) => (
+                    <option key={variant.key} value={variant.key}>
+                      {locale === "it" ? variant.labelIt : variant.labelEn}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+                <span className="font-medium text-gray-800">{t.variant}</span>
+                <p className="mt-1 text-xs">{t.noSideVariants}</p>
+              </div>
+            )}
 
             <NumberField
               id="module-width"

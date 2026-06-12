@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { FolderTree, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 
 import {
   buildCategoryPayload,
@@ -142,12 +142,17 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
 
   return (
     <section className="mx-auto grid max-w-7xl gap-5 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:px-8">
-      <div className="min-w-0 rounded-lg border border-gray-200 bg-white shadow-sm">
-        <div className="border-b border-gray-200 p-4">
-          <h2 className="text-lg font-semibold">Lista categorie</h2>
-          <p className="mt-1 text-sm text-gray-500">
-            {categories.length} categorie disponibili
-          </p>
+      <div className="min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <div className="flex items-center justify-between gap-4 border-b border-gray-200 bg-gray-50 px-4 py-4">
+          <div>
+            <h2 className="text-lg font-semibold">Lista categorie</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              {categories.length} categorie disponibili
+            </p>
+          </div>
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-200 text-gray-800">
+            <FolderTree className="h-5 w-5" aria-hidden="true" />
+          </span>
         </div>
 
         {categories.length === 0 ? (
@@ -157,17 +162,21 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
         ) : (
           <div className="divide-y divide-gray-100">
             {categories.map((category) => (
-              <article key={category.id} className="p-4">
+              <article
+                key={category.id}
+                className="group relative p-4 transition hover:bg-gray-50/80"
+              >
+                <span className="absolute left-0 top-4 h-[calc(100%-2rem)] w-1 rounded-r-full bg-gray-300 transition group-hover:bg-gray-500" />
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
-                    <h3 className="text-base font-semibold">
+                    <h3 className="text-base font-semibold transition group-hover:text-gray-700">
                       {category.name}
                     </h3>
-                    <p className="mt-1 text-sm text-gray-600">
-                      Slug: {category.slug}
+                    <p className="mt-1 inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 ring-1 ring-gray-200">
+                      /{category.slug}
                     </p>
                     {category.description ? (
-                      <p className="mt-2 text-sm text-gray-500">
+                      <p className="mt-3 text-sm leading-6 text-gray-600">
                         {category.description}
                       </p>
                     ) : null}
@@ -180,7 +189,7 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
                     <button
                       type="button"
                       onClick={() => startEdit(category)}
-                      className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-700 transition hover:border-gray-300 hover:bg-gray-50"
+                      className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition hover:border-gray-300 hover:bg-gray-50"
                     >
                       <Pencil className="h-4 w-4" aria-hidden="true" />
                       Modifica
@@ -203,9 +212,9 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
 
       <form
         onSubmit={handleSubmit}
-        className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+        className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm lg:sticky lg:top-4 lg:self-start"
       >
-        <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="-mx-4 -mt-4 mb-4 flex items-start justify-between gap-3 rounded-t-2xl border-b border-gray-200 bg-gray-50 px-4 py-4">
           <div>
             <h2 className="text-lg font-semibold">
               {editingCategory ? "Modifica categoria" : "Nuova categoria"}
@@ -220,7 +229,7 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
             <button
               type="button"
               onClick={resetForm}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
             >
               <X className="h-4 w-4" aria-hidden="true" />
               Annulla
@@ -252,7 +261,7 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
               value={form.description}
               onChange={(event) => updateForm("description", event.target.value)}
               rows={4}
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-gray-950"
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-100"
             />
           </label>
           <TextField
@@ -265,7 +274,7 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
           <button
             type="submit"
             disabled={isSaving}
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-gray-950 px-4 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-400"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gray-700 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-400"
           >
             {isSaving ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -305,7 +314,7 @@ function TextField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         required={required}
-        className="mt-1 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none transition focus:border-gray-950"
+        className="mt-1 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-100"
       />
     </label>
   );

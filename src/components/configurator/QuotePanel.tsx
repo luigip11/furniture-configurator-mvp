@@ -9,6 +9,10 @@ import {
   DEFAULT_MODULE_VARIANT,
   getModuleVariantLabel,
 } from "@/types/configurator";
+import {
+  getModuleBillOfMaterials,
+  hasConfigurableModuleVariants,
+} from "@/lib/configurator/module-technical-catalog";
 
 export function QuotePanel() {
   const locale = useConfiguratorStore((state) => state.locale);
@@ -60,6 +64,10 @@ export function QuotePanel() {
               item.variantKey || DEFAULT_MODULE_VARIANT,
               locale
             );
+            const bomCount = getModuleBillOfMaterials(
+              item.code,
+              item.variantKey || DEFAULT_MODULE_VARIANT
+            ).length;
 
             return (
               <div
@@ -73,12 +81,19 @@ export function QuotePanel() {
                       {t.code}: {item.code}
                     </p>
                   ) : null}
-                  <p className="mt-1 text-xs text-gray-500">
-                    {t.variant}: {variantLabel}
-                  </p>
+                  {hasConfigurableModuleVariants(item.code) ? (
+                    <p className="mt-1 text-xs text-gray-500">
+                      {t.variant}: {variantLabel}
+                    </p>
+                  ) : null}
                   <p className="mt-1 text-xs text-gray-500">
                     {item.widthMm} × {item.heightMm} × {item.depthMm} mm
                   </p>
+                  {bomCount > 0 ? (
+                    <p className="mt-1 text-xs text-gray-500">
+                      {t.technicalComponents}: {bomCount}
+                    </p>
+                  ) : null}
                 </div>
 
                 <p className="text-sm font-medium">

@@ -14,6 +14,10 @@ import {
   normalizeRotation,
   snapPosition,
 } from "@/store/configurator-calculations";
+import {
+  getSafeModuleVariant,
+  hasConfigurableModuleVariants,
+} from "@/lib/configurator/module-technical-catalog";
 
 export { CONFIGURATOR_GRID_SIZE, snapToGrid } from "@/store/configurator-calculations";
 
@@ -78,7 +82,7 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
       price: product.price,
       position: getNextPosition(currentItems, product.width_mm),
       rotationY: 0,
-      variantKey: DEFAULT_MODULE_VARIANT,
+      variantKey: getSafeModuleVariant(product.code, DEFAULT_MODULE_VARIANT),
       color: "#d8d3c7",
     };
     const alignedItem: ConfiguratorItem = {
@@ -120,9 +124,15 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
 
   updateVariant: (itemId, variantKey) => {
     set({
-      items: get().items.map((item) =>
-        item.id === itemId ? { ...item, variantKey } : item
-      ),
+      items: get().items.map((item) => {
+        if (item.id !== itemId) return item;
+        if (!hasConfigurableModuleVariants(item.code)) return item;
+
+        return {
+          ...item,
+          variantKey: getSafeModuleVariant(item.code, variantKey),
+        };
+      }),
     });
   },
 

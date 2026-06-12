@@ -23,6 +23,7 @@ const CATALOG_GROUPS = [
   { id: "sink", titleKey: "groupSink" },
   { id: "washbasin", titleKey: "groupWashbasin" },
   { id: "laundry", titleKey: "groupLaundry" },
+  { id: "wallUnits", titleKey: "groupWallUnits" },
   { id: "systems", titleKey: "groupSystems" },
   { id: "portal", titleKey: "groupPortal" },
 ] satisfies { id: string; titleKey: keyof typeof dictionary.it }[];
@@ -178,6 +179,7 @@ function getCatalogGroupId(product: Product) {
 
   if (text.includes("colonna")) return "columns";
   if (text.includes("port")) return "portal";
+  if (text.includes("pensile")) return "wallUnits";
   if (text.includes("impiant") || text.includes("cont")) return "systems";
   if (text.includes("lavatrice") || text.includes("asciug")) return "laundry";
   if (text.includes("sottolavatoio")) return "washbasin";

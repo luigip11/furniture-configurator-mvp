@@ -5,6 +5,11 @@ import {
   getModuleVariantLabel,
 } from "@/types/configurator";
 import {
+  getModuleBillOfMaterials,
+  hasConfigurableModuleVariants,
+  ModuleBomComponent,
+} from "@/lib/configurator/module-technical-catalog";
+import {
   CONFIGURATOR_SCENE_SCALE,
   getItemFootprintMm,
 } from "@/store/configurator-calculations";
@@ -120,7 +125,12 @@ function createPageStreams(
   y -= 28.35;
 
   items.forEach((item, index) => {
-    ensureSpace(82);
+    const bomComponents = getModuleBillOfMaterials(
+      item.code,
+      item.variantKey || DEFAULT_MODULE_VARIANT
+    );
+
+    ensureSpace(92 + bomComponents.length * 16);
 
     const name = locale === "it" ? item.nameIt : item.nameEn || item.nameIt;
     const variant = getModuleVariantLabel(
@@ -129,7 +139,13 @@ function createPageStreams(
     );
 
     addBoldText(
-      `${index + 1}. ${name} ${t.pdfWith} ${variant}`,
+      getModuleTitle(
+        index + 1,
+        name,
+        variant,
+        hasConfigurableModuleVariants(item.code),
+        t.pdfWith
+      ),
       PAGE_MARGIN_X,
       y,
       11
@@ -144,11 +160,69 @@ function createPageStreams(
       11
     );
     y -= 24;
+
+    if (bomComponents.length > 0) {
+      addBoldText(t.pdfTechnicalComponents, PAGE_MARGIN_X + 14.17, y, 10);
+      y -= 15.59;
+
+      bomComponents.forEach((component) => {
+        ensureSpace(20);
+        addText(
+          formatBomComponentLine(component, t),
+          PAGE_MARGIN_X + 28.35,
+          y,
+          8.5
+        );
+        y -= 14.17;
+      });
+
+      y -= 6;
+    }
   });
 
   flushPage();
 
   return pageStreams;
+}
+
+// Compone il titolo modulo evitando varianti fianchi su elementi speciali.
+function getModuleTitle(
+  index: number,
+  name: string,
+  variant: string,
+  variantVisible: boolean,
+  withLabel: string
+) {
+  return variantVisible
+    ? `${index}. ${name} ${withLabel} ${variant}`
+    : `${index}. ${name}`;
+}
+
+// Formatta una riga distinta in una forma compatta adatta al PDF tecnico.
+function formatBomComponentLine(
+  component: ModuleBomComponent,
+  t: Record<string, string>
+) {
+  const quantity = component.quantity ?? "-";
+  const optional = component.optional ? ` (${t.pdfOptional})` : "";
+  const dimensions = [
+    ["L", component.widthMm],
+    ["A", component.heightMm],
+    ["P", component.depthMm],
+    [t.pdfThickness, component.thicknessMm],
+  ]
+    .filter(([, value]) => value !== undefined && value !== null && value !== "")
+    .map(([label, value]) => `${label} ${formatBomValue(value)}`)
+    .join(" / ");
+
+  return `${t.pdfQuantity} ${quantity} | ${component.code} | ${
+    component.name
+  }${optional}${dimensions ? ` | ${dimensions}` : ""}`;
+}
+
+// Normalizza numeri e formule testuali della legenda prima di scriverli nel PDF.
+function formatBomValue(value: ModuleBomComponent[keyof ModuleBomComponent]) {
+  return typeof value === "number" ? `${value}` : String(value);
 }
 
 function getFootprintSummary(items: ConfiguratorItem[]): FootprintSummary {

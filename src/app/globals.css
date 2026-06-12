@@ -18,6 +18,12 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+*,
+::before,
+::after {
+  border-color: #c9cdd3;
+}
+
 .configurator-scene canvas {
   height: 100% !important;
   width: 100% !important;

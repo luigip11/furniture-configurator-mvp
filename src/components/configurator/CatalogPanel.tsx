@@ -13,19 +13,19 @@ type CatalogPanelProps = {
 
 type CatalogGroup = {
   id: string;
-  title: string;
+  title: keyof typeof dictionary.it;
   products: Product[];
 };
 
 const CATALOG_GROUPS = [
-  { id: "standard", title: "Basi Standard" },
-  { id: "columns", title: "Colonne" },
-  { id: "sink", title: "Basi Sottolavello" },
-  { id: "washbasin", title: "Basi Sottolavatoio" },
-  { id: "laundry", title: "Basi Lavanderia" },
-  { id: "systems", title: "Contenitori Impianti" },
-  { id: "portal", title: "Portale Filo" },
-] satisfies { id: string; title: string }[];
+  { id: "standard", titleKey: "groupStandard" },
+  { id: "columns", titleKey: "groupColumns" },
+  { id: "sink", titleKey: "groupSink" },
+  { id: "washbasin", titleKey: "groupWashbasin" },
+  { id: "laundry", titleKey: "groupLaundry" },
+  { id: "systems", titleKey: "groupSystems" },
+  { id: "portal", titleKey: "groupPortal" },
+] satisfies { id: string; titleKey: keyof typeof dictionary.it }[];
 
 export function CatalogPanel({ products, onCollapse }: CatalogPanelProps) {
   const [collapsedGroups, setCollapsedGroups] = useState<
@@ -45,8 +45,8 @@ export function CatalogPanel({ products, onCollapse }: CatalogPanelProps) {
         {onCollapse ? (
           <button
             type="button"
-            aria-label="Comprimi catalogo"
-            title="Comprimi catalogo"
+            aria-label={t.collapseCatalog}
+            title={t.collapseCatalog}
             onClick={onCollapse}
             className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-gray-50 text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-600"
           >
@@ -77,10 +77,10 @@ export function CatalogPanel({ products, onCollapse }: CatalogPanelProps) {
                 >
                   <span>
                     <span className="block text-sm font-semibold text-gray-900">
-                      {group.title}
+                      {t[group.title]}
                     </span>
                     <span className="text-xs text-gray-500">
-                      {group.products.length} moduli
+                      {group.products.length} {t.modules}
                     </span>
                   </span>
                   <ChevronDown
@@ -146,7 +146,7 @@ function CatalogProductCard({
       <button
         type="button"
         onClick={onAdd}
-        className="w-full rounded-lg bg-black px-3 py-2 text-sm font-medium text-white transition hover:bg-gray-800"
+        className="w-full rounded-lg bg-gray-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-gray-700"
       >
         {t.add}
       </button>
@@ -165,7 +165,8 @@ function groupCatalogProducts(products: Product[]): CatalogGroup[] {
   });
 
   return CATALOG_GROUPS.map((group) => ({
-    ...group,
+    id: group.id,
+    title: group.titleKey,
     products: productsByGroup.get(group.id) || [],
   })).filter((group) => group.products.length > 0);
 }

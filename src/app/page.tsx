@@ -20,7 +20,7 @@ export default function Home() {
         <div className="flex flex-col justify-center gap-3 sm:flex-row">
           <Link
             href="/configuratore"
-            className="inline-flex justify-center rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800"
+            className="inline-flex justify-center rounded-xl bg-gray-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-700"
           >
             Apri configuratore
           </Link>

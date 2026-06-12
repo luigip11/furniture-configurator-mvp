@@ -12,20 +12,20 @@ export function ConfiguratorHeader() {
   const t = dictionary[locale];
 
   return (
-    <header className="mb-4 flex flex-col justify-between gap-3 rounded-2xl border bg-white p-4 shadow-sm md:flex-row md:items-center">
+    <header className="mb-3 flex flex-col justify-between gap-2 rounded-xl border bg-white px-4 py-2.5 shadow-sm md:flex-row md:items-center">
       <div>
-        <p className="text-sm font-medium text-gray-500">
+        <p className="text-xs font-medium text-gray-500">
           Furniture Configurator MVP
         </p>
-        <h1 className="text-2xl font-bold">{t.configurator}</h1>
+        <h1 className="text-xl font-bold leading-tight">{t.configurator}</h1>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <Link
           href="/admin"
-          className="rounded-lg border border-blue-700 bg-blue-500 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+          className="rounded-lg border border-blue-600 bg-blue-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-600"
         >
-          Area admin
+          {t.adminArea}
         </Link>
 
         <div className="flex items-center gap-2 rounded-xl bg-gray-100 p-1">

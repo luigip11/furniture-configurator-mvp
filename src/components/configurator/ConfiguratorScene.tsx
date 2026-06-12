@@ -691,6 +691,11 @@ export function ConfiguratorScene({
 
   const t = dictionary[locale];
   const selectedItem = items.find((item) => item.id === selectedItemId);
+  const selectedItemName = selectedItem
+    ? locale === "it"
+      ? selectedItem.nameIt
+      : selectedItem.nameEn || selectedItem.nameIt
+    : "";
   const footprintSummary = useMemo(() => getFootprintSummary(items), [items]);
 
   const sendViewCommand = (type: ViewCommandType) => {
@@ -711,7 +716,7 @@ export function ConfiguratorScene({
             onClick={() => setSceneMode(modeOption.key)}
             className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
               sceneMode === modeOption.key
-                ? "bg-gray-900 text-white shadow-sm"
+                ? "bg-gray-600 text-white shadow-sm"
                 : "text-gray-600 hover:bg-gray-100"
             }`}
           >
@@ -725,8 +730,8 @@ export function ConfiguratorScene({
           {selectedItem ? (
             <button
               type="button"
-              aria-label={`Rimuovi ${selectedItem.nameIt}`}
-              title="Rimuovi elemento selezionato"
+              aria-label={`${t.remove}: ${selectedItemName}`}
+              title={t.removeSelectedItem}
               onClick={() => removeItem(selectedItem.id)}
               className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-700"
             >
@@ -737,10 +742,8 @@ export function ConfiguratorScene({
           <button
             type="button"
             aria-pressed={labelsVisible}
-            aria-label={
-              labelsVisible ? "Nascondi etichette" : "Mostra etichette"
-            }
-            title={labelsVisible ? "Nascondi etichette" : "Mostra etichette"}
+            aria-label={labelsVisible ? t.hideLabels : t.showLabels}
+            title={labelsVisible ? t.hideLabels : t.showLabels}
             onClick={() => setLabelsVisible((visible) => !visible)}
             className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/90 text-gray-800 shadow-sm ring-1 ring-black/10 transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
           >
@@ -755,19 +758,19 @@ export function ConfiguratorScene({
 
       <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-2 rounded-lg bg-white/95 p-1 shadow-md ring-1 ring-black/10">
         <MapControlButton
-          label="Zoom avanti"
+          label={t.zoomIn}
           onClick={() => sendViewCommand("zoom-in")}
         >
           <Plus size={18} aria-hidden="true" />
         </MapControlButton>
         <MapControlButton
-          label="Zoom indietro"
+          label={t.zoomOut}
           onClick={() => sendViewCommand("zoom-out")}
         >
           <Minus size={18} aria-hidden="true" />
         </MapControlButton>
         <MapControlButton
-          label="Ruota mappa"
+          label={t.rotateMap}
           onClick={() => sendViewCommand("rotate")}
         >
           <RotateCw size={18} aria-hidden="true" />
@@ -778,16 +781,25 @@ export function ConfiguratorScene({
         <div className="absolute bottom-4 left-1/2 z-10 w-[min(520px,calc(100%-120px))] -translate-x-1/2 rounded-xl bg-white/92 p-3 shadow-md ring-1 ring-black/10 backdrop-blur-sm">
           <div className="mb-2 flex items-center justify-between gap-3">
             <p className="text-sm font-semibold text-gray-900">
-              {sceneMode === "wall" ? "Ingombro filo parete" : "Ingombro filo fronte"}
+              {sceneMode === "wall" ? t.wallFootprint : t.frontFootprint}
             </p>
             <p className="text-xs font-medium text-gray-500">
-              {footprintSummary.count} moduli
+              {footprintSummary.count} {t.modules}
             </p>
           </div>
           <div className="grid grid-cols-3 gap-2 text-center">
-            <FootprintValue label="LARGHEZZA" value={footprintSummary.widthMm} />
-            <FootprintValue label="ALTEZZA" value={footprintSummary.heightMm} />
-            <FootprintValue label="PROFONDITÀ" value={footprintSummary.depthMm} />
+            <FootprintValue
+              label={t.width.toUpperCase()}
+              value={footprintSummary.widthMm}
+            />
+            <FootprintValue
+              label={t.height.toUpperCase()}
+              value={footprintSummary.heightMm}
+            />
+            <FootprintValue
+              label={t.depth.toUpperCase()}
+              value={footprintSummary.depthMm}
+            />
           </div>
         </div>
       ) : null}

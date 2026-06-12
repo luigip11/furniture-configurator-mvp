@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
+import { Download } from "lucide-react";
 import { useConfiguratorStore } from "@/store/configurator-store";
 import { dictionary } from "@/lib/i18n/dictionary";
+import { downloadTechnicalSheetPdf } from "@/lib/configurator/technical-sheet-pdf";
 import {
   DEFAULT_MODULE_VARIANT,
   getModuleVariantLabel,
@@ -25,13 +27,25 @@ export function QuotePanel() {
         <h2 className="text-lg font-semibold">{t.quote}</h2>
 
         {items.length > 0 ? (
-          <button
-            type="button"
-            onClick={clear}
-            className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100"
-          >
-            {t.clear}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={clear}
+              className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+            >
+              {t.clear}
+            </button>
+
+            <button
+              type="button"
+              aria-label={t.downloadTechnicalSheet}
+              title={t.downloadTechnicalSheet}
+              onClick={() => downloadTechnicalSheetPdf(items, locale)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-gray-100 text-gray-700 transition hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
+            >
+              <Download size={16} aria-hidden="true" />
+            </button>
+          </div>
         ) : null}
       </div>
 
@@ -85,7 +99,7 @@ export function QuotePanel() {
 
           <button
             type="button"
-            className="w-full rounded-lg bg-black px-3 py-2 text-sm font-medium text-white transition hover:bg-gray-800"
+            className="w-full rounded-lg bg-gray-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-gray-700"
           >
             {t.requestQuote}
           </button>

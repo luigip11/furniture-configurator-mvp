@@ -18,6 +18,7 @@ export function ProductPropertiesPanel() {
   const [positionExpanded, setPositionExpanded] = useState(false);
   const locale = useConfiguratorStore((state) => state.locale);
   const items = useConfiguratorStore((state) => state.items);
+  const sceneMode = useConfiguratorStore((state) => state.sceneMode);
   const selectedItemId = useConfiguratorStore((state) => state.selectedItemId);
   const updateItem = useConfiguratorStore((state) => state.updateItem);
   const updateVariant = useConfiguratorStore((state) => state.updateVariant);
@@ -34,7 +35,9 @@ export function ProductPropertiesPanel() {
     return (
       <aside className="rounded-2xl border bg-white p-4 shadow-sm">
         <CollapsiblePanelHeader
+          collapseLabel={t.collapseProperties}
           expanded={propertiesExpanded}
+          expandLabel={t.expandProperties}
           title={t.properties}
           onToggle={() => setPropertiesExpanded((expanded) => !expanded)}
         />
@@ -50,11 +53,16 @@ export function ProductPropertiesPanel() {
       ? selectedItem.nameIt
       : selectedItem.nameEn || selectedItem.nameIt;
   const positionStep = CONFIGURATOR_GRID_SIZE;
+  const zMovementDisabled = sceneMode !== "open";
+  const positionButtonClassName =
+    "rounded-lg border px-3 py-2 text-xs font-medium transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 disabled:hover:bg-gray-100";
 
   return (
     <aside className="rounded-2xl border bg-white p-4 shadow-sm">
       <CollapsiblePanelHeader
+        collapseLabel={t.collapseProperties}
         expanded={propertiesExpanded}
+        expandLabel={t.expandProperties}
         title={t.properties}
         onToggle={() => setPropertiesExpanded((expanded) => !expanded)}
       />
@@ -84,7 +92,7 @@ export function ProductPropertiesPanel() {
                     event.target.value as ModuleVariantKey
                   )
                 }
-                className="mb-2 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-black"
+                className="mb-2 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-gray-500"
               >
                 {MODULE_VARIANT_OPTIONS.map((variant) => (
                   <option key={variant.key} value={variant.key}>
@@ -128,10 +136,10 @@ export function ProductPropertiesPanel() {
                 onClick={() => setPositionExpanded((expanded) => !expanded)}
                 className="flex w-full items-center justify-between gap-3 rounded-lg px-1 py-2 text-left transition hover:bg-gray-50"
               >
-                <span>
-                  <span className="block text-sm font-semibold text-gray-800">
-                    Posizione elemento
-                  </span>
+                  <span>
+                    <span className="block text-sm font-semibold text-gray-800">
+                      {t.positionElement}
+                    </span>
                   <span className="mt-0.5 block text-xs text-gray-500">
                     X {Number(selectedItem.position[0].toFixed(2))} / Z{" "}
                     {Number(selectedItem.position[2].toFixed(2))}
@@ -150,7 +158,7 @@ export function ProductPropertiesPanel() {
                 <div className="pt-2">
                   <NumberField
                     id="module-position-x"
-                    label="Posizione X"
+                    label={t.positionX}
                     value={Number(selectedItem.position[0].toFixed(2))}
                     step={positionStep}
                     onChange={(value) => moveItem(selectedItem.id, "x", value)}
@@ -158,7 +166,7 @@ export function ProductPropertiesPanel() {
 
                   <NumberField
                     id="module-position-z"
-                    label="Posizione Z"
+                    label={t.positionZ}
                     value={Number(selectedItem.position[2].toFixed(2))}
                     step={positionStep}
                     onChange={(value) => moveItem(selectedItem.id, "z", value)}
@@ -178,9 +186,9 @@ export function ProductPropertiesPanel() {
                           )
                         )
                       }
-                      className="rounded-lg border px-3 py-2 text-xs font-medium hover:bg-gray-50"
+                      className={positionButtonClassName}
                     >
-                      ← Sinistra
+                      ← {t.left}
                     </button>
 
                     <button
@@ -196,13 +204,14 @@ export function ProductPropertiesPanel() {
                           )
                         )
                       }
-                      className="rounded-lg border px-3 py-2 text-xs font-medium hover:bg-gray-50"
+                      className={positionButtonClassName}
                     >
-                      Destra →
+                      {t.right} →
                     </button>
 
                     <button
                       type="button"
+                      disabled={zMovementDisabled}
                       onClick={() =>
                         moveItem(
                           selectedItem.id,
@@ -214,13 +223,14 @@ export function ProductPropertiesPanel() {
                           )
                         )
                       }
-                      className="rounded-lg border px-3 py-2 text-xs font-medium hover:bg-gray-50"
+                      className={positionButtonClassName}
                     >
-                      ↑ Avanti
+                      ↑ {t.forward}
                     </button>
 
                     <button
                       type="button"
+                      disabled={zMovementDisabled}
                       onClick={() =>
                         moveItem(
                           selectedItem.id,
@@ -232,9 +242,9 @@ export function ProductPropertiesPanel() {
                           )
                         )
                       }
-                      className="rounded-lg border px-3 py-2 text-xs font-medium hover:bg-gray-50"
+                      className={positionButtonClassName}
                     >
-                      Indietro ↓
+                      {t.back} ↓
                     </button>
                   </div>
                 </div>
@@ -249,7 +259,7 @@ export function ProductPropertiesPanel() {
               className="flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm font-medium text-slate-800 transition hover:bg-slate-200"
             >
               <RotateCw size={16} aria-hidden="true" />
-              Ruota 90°
+              {t.rotate90}
             </button>
 
             <button
@@ -285,24 +295,30 @@ export function ProductPropertiesPanel() {
 }
 
 type CollapsiblePanelHeaderProps = {
+  collapseLabel: string;
   expanded: boolean;
+  expandLabel: string;
   onToggle: () => void;
   title: string;
 };
 
 function CollapsiblePanelHeader({
+  collapseLabel,
   expanded,
+  expandLabel,
   onToggle,
   title,
 }: CollapsiblePanelHeaderProps) {
+  const toggleLabel = expanded ? collapseLabel : expandLabel;
+
   return (
     <div className="flex items-center justify-between gap-3">
       <h2 className="text-lg font-semibold">{title}</h2>
       <button
         type="button"
         aria-expanded={expanded}
-        aria-label={expanded ? "Comprimi proprietà" : "Espandi proprietà"}
-        title={expanded ? "Comprimi proprietà" : "Espandi proprietà"}
+        aria-label={toggleLabel}
+        title={toggleLabel}
         onClick={onToggle}
         className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-gray-50 text-gray-800 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-600"
       >
@@ -342,7 +358,7 @@ function NumberField({
         value={value}
         step={step}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="mb-2 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-black"
+        className="mb-2 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-500"
       />
     </label>
   );

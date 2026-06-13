@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, ThreeEvent, useThree } from "@react-three/fiber";
 import { Edges, Grid, OrbitControls } from "@react-three/drei";
-import { Eye, EyeOff, Minus, Plus, RotateCw, Trash2 } from "lucide-react";
+import { Eye, EyeOff, Info, Minus, Plus, RotateCw, Trash2 } from "lucide-react";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { ProductModel } from "@/components/configurator/ProductModel";
@@ -287,7 +287,15 @@ function SceneAlignmentGuide({ sceneMode }: { sceneMode: SceneMode }) {
   );
 }
 
-function SceneHint({ compact, text }: { compact: boolean; text: string }) {
+function SceneHint({
+  compact,
+  mobileVisible,
+  text,
+}: {
+  compact: boolean;
+  mobileVisible: boolean;
+  text: string;
+}) {
   const sentences = text
     .split(".")
     .map((sentence) => sentence.trim())
@@ -295,14 +303,22 @@ function SceneHint({ compact, text }: { compact: boolean; text: string }) {
 
   if (compact || sentences.length < 2) {
     return (
-      <p className="absolute left-4 top-4 z-10 whitespace-nowrap text-xs font-medium text-gray-600 drop-shadow-[0_1px_1px_rgba(255,255,255,0.95)]">
+      <p
+        className={`absolute left-3 right-3 top-20 z-10 text-center text-xs font-medium text-gray-600 drop-shadow-[0_1px_1px_rgba(255,255,255,0.95)] sm:left-4 sm:right-auto sm:top-4 sm:block sm:whitespace-nowrap sm:text-left ${
+          mobileVisible ? "block" : "hidden"
+        }`}
+      >
         {sentences[0] ? `${sentences[0]}.` : text}
       </p>
     );
   }
 
   return (
-    <p className="absolute left-4 top-4 z-10 max-w-[220px] text-xs font-medium leading-5 text-gray-600 drop-shadow-[0_1px_1px_rgba(255,255,255,0.95)]">
+    <p
+      className={`absolute left-3 right-3 top-20 z-10 text-center text-xs font-medium leading-5 text-gray-600 drop-shadow-[0_1px_1px_rgba(255,255,255,0.95)] sm:left-4 sm:right-auto sm:top-4 sm:block sm:max-w-[220px] sm:text-left ${
+        mobileVisible ? "block" : "hidden"
+      }`}
+    >
       <span className="block">{sentences[0]}.</span>
       <span className="block">{sentences.slice(1).join(". ")}.</span>
     </p>
@@ -324,6 +340,7 @@ export function ConfiguratorScene({
   const selectItem = useConfiguratorStore((state) => state.selectItem);
   const removeItem = useConfiguratorStore((state) => state.removeItem);
   const [labelsVisible, setLabelsVisible] = useState(true);
+  const [mobileHintVisible, setMobileHintVisible] = useState(false);
   const [viewCommand, setViewCommand] = useState<ViewCommand | null>(null);
   const viewCommandIdRef = useRef(0);
 
@@ -343,7 +360,26 @@ export function ConfiguratorScene({
 
   return (
     <section className="configurator-scene relative h-[520px] w-full overflow-hidden rounded-2xl border bg-gray-100 shadow-sm lg:h-full lg:min-h-0">
-      <SceneHint compact={compactHint} text={t.sceneHint} />
+      <button
+        type="button"
+        aria-expanded={mobileHintVisible}
+        aria-label={
+          mobileHintVisible ? t.hideSceneInstructions : t.showSceneInstructions
+        }
+        title={
+          mobileHintVisible ? t.hideSceneInstructions : t.showSceneInstructions
+        }
+        onClick={() => setMobileHintVisible((visible) => !visible)}
+        className="absolute left-4 top-4 z-20 flex h-9 w-9 items-center justify-center rounded-lg bg-white/90 text-gray-800 shadow-sm ring-1 ring-black/10 transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 sm:hidden"
+      >
+        <Info size={18} aria-hidden="true" />
+      </button>
+
+      <SceneHint
+        compact={compactHint}
+        mobileVisible={mobileHintVisible}
+        text={t.sceneHint}
+      />
 
       <div className="absolute left-1/2 top-4 z-10 flex -translate-x-1/2 rounded-lg bg-white/90 p-1 shadow-sm ring-1 ring-black/10 backdrop-blur-sm">
         {SCENE_MODE_OPTIONS.map((modeOption) => (
@@ -364,14 +400,14 @@ export function ConfiguratorScene({
       </div>
 
       {items.length > 0 ? (
-        <div className="absolute right-4 top-4 z-10 flex gap-2">
+        <div className="absolute right-4 top-4 z-10 flex flex-col gap-2 sm:flex-row">
           {selectedItem ? (
             <button
               type="button"
               aria-label={`${t.remove}: ${selectedItemName}`}
               title={t.removeSelectedItem}
               onClick={() => removeItem(selectedItem.id)}
-              className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-700"
+              className="order-2 flex h-9 w-9 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-700 sm:order-1"
             >
               <Trash2 size={18} aria-hidden="true" />
             </button>
@@ -383,7 +419,7 @@ export function ConfiguratorScene({
             aria-label={labelsVisible ? t.hideLabels : t.showLabels}
             title={labelsVisible ? t.hideLabels : t.showLabels}
             onClick={() => setLabelsVisible((visible) => !visible)}
-            className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/90 text-gray-800 shadow-sm ring-1 ring-black/10 transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+            className="order-1 flex h-9 w-9 items-center justify-center rounded-lg bg-white/90 text-gray-800 shadow-sm ring-1 ring-black/10 transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 sm:order-2"
           >
             {labelsVisible ? (
               <Eye size={18} aria-hidden="true" />
@@ -416,7 +452,7 @@ export function ConfiguratorScene({
       </div>
 
       {sceneMode !== "open" && footprintSummary.count > 0 ? (
-        <div className="absolute bottom-4 left-1/2 z-10 w-[min(520px,calc(100%-120px))] -translate-x-1/2 rounded-xl bg-white/92 p-3 shadow-md ring-1 ring-black/10 backdrop-blur-sm">
+        <div className="absolute bottom-4 left-4 z-10 w-[calc(100%-96px)] rounded-xl bg-white/92 p-3 shadow-md ring-1 ring-black/10 backdrop-blur-sm sm:left-1/2 sm:w-[min(520px,calc(100%-120px))] sm:-translate-x-1/2">
           <div className="mb-2 flex items-center justify-between gap-3">
             <p className="text-sm font-semibold text-gray-900">
               {sceneMode === "wall" ? t.wallFootprint : t.frontFootprint}
@@ -519,8 +555,11 @@ function getFootprintSummary(items: ConfiguratorItem[]): FootprintSummary {
 
 function FootprintValue({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg bg-gray-100 px-2 py-2">
-      <p className="text-[10px] font-semibold uppercase text-gray-500">
+    <div className="min-w-0 rounded-lg bg-gray-100 px-2 py-2">
+      <p
+        className="truncate text-[10px] font-semibold uppercase text-gray-500"
+        title={label}
+      >
         {label}
       </p>
       <p className="text-sm font-bold text-gray-950">{value} mm</p>

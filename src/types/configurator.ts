@@ -99,6 +99,7 @@ export type ConfiguratorItem = {
   heightMm: number;
   depthMm: number;
   price?: number | null;
+  modelUrl?: string | null;
   position: [number, number, number];
   rotationY: number;
   variantKey: ModuleVariantKey;

@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Box,
+  CheckCircle2,
   Eye,
   EyeOff,
   FileBox,
@@ -13,6 +14,7 @@ import {
   Plus,
   Save,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 
@@ -24,6 +26,11 @@ import {
   productToForm,
   type ProductFormValues,
 } from "@/lib/admin/product-form";
+import {
+  getProductAssetAccept,
+  uploadProductAsset,
+  type ProductAssetField,
+} from "@/lib/admin/product-assets";
 
 type ProductAdminProps = {
   initialProducts: Product[];
@@ -39,6 +46,9 @@ export function ProductAdmin({
   const [form, setForm] = useState<ProductFormValues>(emptyProductForm);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [uploadingField, setUploadingField] = useState<ProductAssetField | null>(
+    null
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const categoryById = useMemo(() => {
@@ -143,6 +153,39 @@ export function ProductAdmin({
       )
     );
     router.refresh();
+  }
+
+  // Carica un asset prodotto su Supabase Storage e aggiorna il campo URL relativo.
+  async function handleAssetUpload(
+    field: ProductAssetField,
+    event: ChangeEvent<HTMLInputElement>
+  ) {
+    const file = event.target.files?.[0];
+
+    event.target.value = "";
+
+    if (!file) return;
+
+    setUploadingField(field);
+    setErrorMessage(null);
+
+    try {
+      const publicUrl = await uploadProductAsset({
+        field,
+        file,
+        productCode: form.code || editingProduct?.code,
+      });
+
+      updateForm(field, publicUrl);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Impossibile caricare il file su Supabase Storage."
+      );
+    } finally {
+      setUploadingField(null);
+    }
   }
 
   async function deleteProduct(product: Product) {
@@ -421,23 +464,35 @@ export function ProductAdmin({
             step="0.01"
           />
 
-          <TextField
+          <AssetUrlField
+            field="preview_image_url"
+            helperText="JPG, PNG o WebP."
+            isUploading={uploadingField === "preview_image_url"}
             label="URL immagine preview opzionale"
+            uploadLabel="Carica preview"
             value={form.preview_image_url}
             onChange={(value) => updateForm("preview_image_url", value)}
-            type="url"
+            onUpload={handleAssetUpload}
           />
-          <TextField
+          <AssetUrlField
+            field="model_url"
+            helperText="GLB o GLTF. Questo file viene caricato dal configuratore 3D."
+            isUploading={uploadingField === "model_url"}
             label="URL modello 3D opzionale"
+            uploadLabel="Carica GLB"
             value={form.model_url}
             onChange={(value) => updateForm("model_url", value)}
-            type="url"
+            onUpload={handleAssetUpload}
           />
-          <TextField
+          <AssetUrlField
+            field="technical_file_url"
+            helperText="RFA, PDF, DWG o ZIP. Gli RFA restano file sorgente tecnico, non vengono renderizzati in scena."
+            isUploading={uploadingField === "technical_file_url"}
             label="URL file tecnico opzionale"
+            uploadLabel="Carica RFA"
             value={form.technical_file_url}
             onChange={(value) => updateForm("technical_file_url", value)}
-            type="url"
+            onUpload={handleAssetUpload}
           />
 
           <label className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm font-medium text-gray-700">
@@ -454,7 +509,7 @@ export function ProductAdmin({
 
           <button
             type="submit"
-            disabled={isSaving}
+            disabled={isSaving || uploadingField !== null}
             className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gray-700 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-400"
           >
             {isSaving ? (
@@ -469,6 +524,87 @@ export function ProductAdmin({
         </div>
       </form>
     </section>
+  );
+}
+
+type AssetUrlFieldProps = {
+  field: ProductAssetField;
+  helperText: string;
+  isUploading: boolean;
+  label: string;
+  uploadLabel: string;
+  value: string;
+  onChange: (value: string) => void;
+  onUpload: (
+    field: ProductAssetField,
+    event: ChangeEvent<HTMLInputElement>
+  ) => void;
+};
+
+// Unisce URL manuale e upload diretto per gli asset collegati al prodotto.
+function AssetUrlField({
+  field,
+  helperText,
+  isUploading,
+  label,
+  uploadLabel,
+  value,
+  onChange,
+  onUpload,
+}: AssetUrlFieldProps) {
+  const inputId = `asset-upload-${field}`;
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <label
+          htmlFor={`${field}-url`}
+          className="text-sm font-medium text-gray-700"
+        >
+          {label}
+        </label>
+        {value ? (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-100">
+            <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+            Collegato
+          </span>
+        ) : null}
+      </div>
+
+      <input
+        id={`${field}-url`}
+        type="url"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-2 h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-100"
+      />
+
+      <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs leading-5 text-gray-500">{helperText}</p>
+        <label
+          htmlFor={inputId}
+          className={`inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition hover:border-gray-300 hover:bg-gray-50 ${
+            isUploading ? "pointer-events-none opacity-70" : ""
+          }`}
+        >
+          {isUploading ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Upload className="h-4 w-4" aria-hidden="true" />
+          )}
+          {isUploading ? "Caricamento" : uploadLabel}
+        </label>
+      </div>
+
+      <input
+        id={inputId}
+        type="file"
+        accept={getProductAssetAccept(field)}
+        disabled={isUploading}
+        onChange={(event) => onUpload(field, event)}
+        className="sr-only"
+      />
+    </div>
   );
 }
 

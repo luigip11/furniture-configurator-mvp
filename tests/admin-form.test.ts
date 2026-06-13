@@ -6,6 +6,11 @@ import {
   categoryToForm,
   slugify,
 } from "../src/lib/admin/category-form.ts";
+import {
+  buildProductAssetPath,
+  getProductAssetAccept,
+  validateProductAssetFile,
+} from "../src/lib/admin/product-assets.ts";
 import { buildProductPayload, productToForm } from "../src/lib/admin/product-form.ts";
 
 test("slugify normalizza accenti, spazi e simboli", () => {
@@ -151,4 +156,53 @@ test("productToForm preserva valori e svuota nullable", () => {
       is_published: false,
     }
   );
+});
+
+test("validateProductAssetFile accetta RFA come file tecnico", () => {
+  assert.doesNotThrow(() =>
+    validateProductAssetFile("technical_file_url", {
+      name: "Modulo Base.RFA",
+      size: 12 * 1024 * 1024,
+    })
+  );
+});
+
+test("validateProductAssetFile blocca estensioni non previste", () => {
+  assert.throws(
+    () =>
+      validateProductAssetFile("model_url", {
+        name: "modello.rfa",
+        size: 1024,
+      }),
+    /Formato non supportato/
+  );
+});
+
+test("validateProductAssetFile blocca file troppo grandi", () => {
+  assert.throws(
+    () =>
+      validateProductAssetFile("technical_file_url", {
+        name: "modello.rfa",
+        size: 181 * 1024 * 1024,
+      }),
+    /File troppo grande/
+  );
+});
+
+test("buildProductAssetPath raggruppa asset per tipo e codice prodotto", () => {
+  assert.equal(
+    buildProductAssetPath({
+      field: "technical_file_url",
+      fileName: "Modulo Base 01.RFA",
+      productCode: "BASE À 01",
+      randomSuffix: "abc123",
+      timestamp: 1700000000000,
+    }),
+    "technical/base-a-01/1700000000000-abc123-modulo-base-01.rfa"
+  );
+});
+
+test("getProductAssetAccept espone estensioni coerenti con il campo", () => {
+  assert.equal(getProductAssetAccept("model_url"), ".glb,.gltf");
+  assert.match(getProductAssetAccept("technical_file_url"), /\.rfa/);
 });

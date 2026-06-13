@@ -80,6 +80,7 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
       heightMm: product.height_mm,
       depthMm: product.depth_mm,
       price: product.price,
+      modelUrl: product.model_url,
       position: getNextPosition(currentItems, product.width_mm),
       rotationY: 0,
       variantKey: getSafeModuleVariant(product.code, DEFAULT_MODULE_VARIANT),

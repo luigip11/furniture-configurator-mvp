@@ -2,6 +2,7 @@ import type { ConfiguratorItem, SceneMode } from "@/types/configurator";
 
 export const CONFIGURATOR_GRID_SIZE = 0.25;
 export const CONFIGURATOR_SCENE_SCALE = 700;
+export const CONFIGURATOR_GRID_HALF_SIZE = 7;
 
 // Arrotonda un valore alla griglia del configuratore mantenendo precisione stabile.
 export function snapToGrid(value: number) {
@@ -52,18 +53,36 @@ export function getItemFootprintScene(
   };
 }
 
+// Mantiene il modulo interamente dentro il piano quadrettato visibile.
+export function clampItemPositionToGridBounds(
+  item: Pick<ConfiguratorItem, "widthMm" | "depthMm" | "rotationY">,
+  position: [number, number, number]
+): [number, number, number] {
+  const footprint = getItemFootprintScene(item);
+  const maxX = Math.max(0, CONFIGURATOR_GRID_HALF_SIZE - footprint.width / 2);
+  const maxZ = Math.max(0, CONFIGURATOR_GRID_HALF_SIZE - footprint.depth / 2);
+
+  return snapPosition([
+    Math.min(maxX, Math.max(-maxX, position[0])),
+    position[1],
+    Math.min(maxZ, Math.max(-maxZ, position[2])),
+  ]);
+}
+
 export function getAlignedPositionForSceneMode(
   item: ConfiguratorItem,
   sceneMode: SceneMode
 ): [number, number, number] {
-  if (sceneMode === "open") return item.position;
+  if (sceneMode === "open") {
+    return clampItemPositionToGridBounds(item, item.position);
+  }
 
   const footprint = getItemFootprintScene(item);
   const [x, y] = item.position;
   const z =
     sceneMode === "wall" ? footprint.depth / 2 : -footprint.depth / 2;
 
-  return snapPosition([x, y, z]);
+  return clampItemPositionToGridBounds(item, [x, y, z]);
 }
 
 // Calcola la prossima posizione libera affiancando il nuovo modulo a quelli esistenti.
@@ -78,5 +97,8 @@ export function getNextPosition(
   );
   const width = widthMm / CONFIGURATOR_SCENE_SCALE;
 
-  return [snapToGrid(rightEdge + width / 2), 0, 0];
+  return clampItemPositionToGridBounds(
+    { widthMm, depthMm: 0, rotationY: 0 },
+    [snapToGrid(rightEdge + width / 2), 0, 0]
+  );
 }

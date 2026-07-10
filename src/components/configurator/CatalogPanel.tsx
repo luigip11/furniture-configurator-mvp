@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronDown, Minus } from "lucide-react";
+import { ChevronDown, Minus, Search, X } from "lucide-react";
 import { Product } from "@/types/configurator";
 import { useConfiguratorStore } from "@/store/configurator-store";
 import { dictionary } from "@/lib/i18n/dictionary";
@@ -31,17 +31,78 @@ const CATALOG_GROUPS = [
 export function CatalogPanel({ products, onCollapse }: CatalogPanelProps) {
   const [collapsedGroups, setCollapsedGroups] = useState<
     Record<string, boolean>
-  >({});
+  >(() =>
+    Object.fromEntries(CATALOG_GROUPS.map((group) => [group.id, true]))
+  );
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const [searchText, setSearchText] = useState("");
   const locale = useConfiguratorStore((state) => state.locale);
   const addProduct = useConfiguratorStore((state) => state.addProduct);
 
   const t = dictionary[locale];
-  const catalogGroups = useMemo(() => groupCatalogProducts(products), [products]);
+  const normalizedSearchText = searchText.trim().toLowerCase();
+  const filteredProducts = useMemo(
+    () => filterCatalogProducts(products, normalizedSearchText),
+    [normalizedSearchText, products]
+  );
+  const catalogGroups = useMemo(
+    () => groupCatalogProducts(filteredProducts),
+    [filteredProducts]
+  );
+  const hasActiveSearch = normalizedSearchText.length > 0;
+
+  // Alterna la ricerca mantenendo il catalogo compatto quando non serve.
+  function toggleSearch() {
+    setSearchExpanded((expanded) => {
+      if (expanded) {
+        setSearchText("");
+        return false;
+      }
+
+      return true;
+    });
+  }
 
   return (
     <aside className="flex h-full min-h-0 flex-col rounded-2xl border bg-white p-4 shadow-sm">
       <div className="mb-4 flex shrink-0 items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">{t.catalog}</h2>
+        <div className="min-w-0 flex-1">
+          {searchExpanded ? (
+            <div className="relative">
+              <input
+                autoFocus
+                type="search"
+                value={searchText}
+                onChange={(event) => setSearchText(event.target.value)}
+                className="catalog-search-input h-9 w-full rounded-lg border border-gray-300 bg-white px-3 pr-9 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                placeholder={locale === "it" ? "Cerca prodotti" : "Search products"}
+              />
+              {searchText ? (
+                <button
+                  type="button"
+                  aria-label={locale === "it" ? "Cancella ricerca" : "Clear search"}
+                  title={locale === "it" ? "Cancella ricerca" : "Clear search"}
+                  onClick={() => setSearchText("")}
+                  className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                >
+                  <X size={15} aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
+          ) : (
+            <h2 className="truncate text-lg font-semibold">{t.catalog}</h2>
+          )}
+        </div>
+
+        <button
+          type="button"
+          aria-label={searchExpanded ? t.catalog : locale === "it" ? "Cerca" : "Search"}
+          title={searchExpanded ? t.catalog : locale === "it" ? "Cerca" : "Search"}
+          onClick={toggleSearch}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-gray-50 text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-600"
+        >
+          <Search size={16} aria-hidden="true" />
+        </button>
 
         {onCollapse ? (
           <button
@@ -56,12 +117,14 @@ export function CatalogPanel({ products, onCollapse }: CatalogPanelProps) {
         ) : null}
       </div>
 
-      {products.length === 0 ? (
+      {filteredProducts.length === 0 ? (
         <p className="text-sm text-gray-500">{t.noProducts}</p>
       ) : (
         <div className="min-h-0 space-y-2 lg:overflow-y-auto lg:pr-1">
           {catalogGroups.map((group) => {
-            const collapsed = collapsedGroups[group.id] || false;
+            const collapsed = hasActiveSearch
+              ? false
+              : collapsedGroups[group.id] ?? true;
 
             return (
               <div key={group.id} className="rounded-xl border bg-gray-50">
@@ -134,7 +197,7 @@ function CatalogProductCard({
       <div className="mb-2">
         <p className="text-sm font-medium">{name}</p>
         {product.code ? (
-          <p className="text-xs text-gray-500">
+          <p className="truncate text-xs text-gray-500" title={product.code}>
             {t.code}: {product.code}
           </p>
         ) : null}
@@ -153,6 +216,19 @@ function CatalogProductCard({
       </button>
     </div>
   );
+}
+
+// Filtra i prodotti su nome, traduzione e codice senza alterare il dato sorgente.
+function filterCatalogProducts(products: Product[], searchText: string) {
+  if (!searchText) return products;
+
+  return products.filter((product) => {
+    const searchableText = `${product.name_it} ${product.name_en || ""} ${
+      product.code || ""
+    }`.toLowerCase();
+
+    return searchableText.includes(searchText);
+  });
 }
 
 function groupCatalogProducts(products: Product[]): CatalogGroup[] {

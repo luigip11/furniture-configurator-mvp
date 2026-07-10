@@ -3,6 +3,8 @@ import { ConfiguratorWorkspace } from "@/components/configurator/ConfiguratorWor
 import { supabase } from "@/lib/supabase/client";
 import { Product } from "@/types/configurator";
 
+export const dynamic = "force-dynamic";
+
 async function getProducts(): Promise<Product[]> {
   const { data, error } = await supabase
     .from("products")

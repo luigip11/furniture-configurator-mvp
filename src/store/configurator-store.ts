@@ -21,12 +21,22 @@ import {
 
 export { CONFIGURATOR_GRID_SIZE, snapToGrid } from "@/store/configurator-calculations";
 
+type ConfiguratorHistorySnapshot = {
+  items: ConfiguratorItem[];
+  selectedItemId: string | null;
+};
+
 type ConfiguratorStore = {
   locale: Locale;
   items: ConfiguratorItem[];
+  past: ConfiguratorHistorySnapshot[];
+  future: ConfiguratorHistorySnapshot[];
   sceneMode: SceneMode;
   selectedItemId: string | null;
+  canRedo: boolean;
+  canUndo: boolean;
 
+  commitHistory: () => void;
   setLocale: (locale: Locale) => void;
   setSceneMode: (sceneMode: SceneMode) => void;
   addProduct: (product: Product) => void;
@@ -40,24 +50,43 @@ type ConfiguratorStore = {
   updateVariant: (itemId: string, variantKey: ModuleVariantKey) => void;
   updatePosition: (
     itemId: string,
-    position: [number, number, number]
+    position: [number, number, number],
+    options?: { recordHistory?: boolean }
   ) => void;
   duplicateItem: (itemId: string) => void;
   rotateItem: (itemId: string) => void;
   moveItem: (itemId: string, axis: "x" | "z", value: number) => void;
   removeItem: (itemId: string) => void;
   clear: () => void;
+  redo: () => void;
+  undo: () => void;
 };
 
 export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
   locale: "it",
   items: [],
+  past: [],
+  future: [],
   sceneMode: "open",
   selectedItemId: null,
+  canRedo: false,
+  canUndo: false,
+
+  commitHistory: () => {
+    const { items, past, selectedItemId } = get();
+
+    set({
+      past: [...past, cloneSnapshot({ items, selectedItemId })],
+      future: [],
+      canUndo: true,
+      canRedo: false,
+    });
+  },
 
   setLocale: (locale) => set({ locale }),
 
   setSceneMode: (sceneMode) => {
+    get().commitHistory();
     set({
       sceneMode,
       items: get().items.map((item) => ({
@@ -69,6 +98,7 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
 
   addProduct: (product) => {
     const currentItems = get().items;
+    get().commitHistory();
 
     const item: ConfiguratorItem = {
       id: crypto.randomUUID(),
@@ -102,6 +132,7 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
   },
 
   updateItem: (itemId, data) => {
+    get().commitHistory();
     set({
       items: get().items.map((item) => {
         if (item.id !== itemId) return item;
@@ -124,6 +155,7 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
   },
 
   updateVariant: (itemId, variantKey) => {
+    get().commitHistory();
     set({
       items: get().items.map((item) => {
         if (item.id !== itemId) return item;
@@ -137,7 +169,11 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
     });
   },
 
-  updatePosition: (itemId, position) => {
+  updatePosition: (itemId, position, options = { recordHistory: true }) => {
+    if (options.recordHistory !== false) {
+      get().commitHistory();
+    }
+
     set({
       items: get().items.map((item) =>
         item.id === itemId
@@ -157,6 +193,7 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
     const sourceItem = get().items.find((item) => item.id === itemId);
 
     if (!sourceItem) return;
+    get().commitHistory();
 
     const duplicatedItem: ConfiguratorItem = {
       ...sourceItem,
@@ -179,6 +216,7 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
   },
 
   rotateItem: (itemId) => {
+    get().commitHistory();
     set({
       items: get().items.map((item) => {
         if (item.id !== itemId) return item;
@@ -200,6 +238,7 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
   },
 
   moveItem: (itemId, axis, value) => {
+    get().commitHistory();
     set({
       items: get().items.map((item) => {
         if (item.id !== itemId) return item;
@@ -224,6 +263,7 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
   },
 
   removeItem: (itemId) => {
+    get().commitHistory();
     const items = get().items.filter((item) => item.id !== itemId);
     const selectedItemId =
       get().selectedItemId === itemId ? null : get().selectedItemId;
@@ -231,5 +271,58 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
     set({ items, selectedItemId });
   },
 
-  clear: () => set({ items: [], selectedItemId: null }),
+  clear: () => {
+    if (get().items.length === 0) return;
+    get().commitHistory();
+    set({ items: [], selectedItemId: null });
+  },
+
+  undo: () => {
+    const { future, items, past, selectedItemId } = get();
+    const previousSnapshot = past[past.length - 1];
+
+    if (!previousSnapshot) return;
+
+    const nextPast = past.slice(0, -1);
+
+    set({
+      items: previousSnapshot.items,
+      selectedItemId: previousSnapshot.selectedItemId,
+      past: nextPast,
+      future: [...future, cloneSnapshot({ items, selectedItemId })],
+      canUndo: nextPast.length > 0,
+      canRedo: true,
+    });
+  },
+
+  redo: () => {
+    const { future, items, past, selectedItemId } = get();
+    const nextSnapshot = future[future.length - 1];
+
+    if (!nextSnapshot) return;
+
+    const nextFuture = future.slice(0, -1);
+
+    set({
+      items: nextSnapshot.items,
+      selectedItemId: nextSnapshot.selectedItemId,
+      past: [...past, cloneSnapshot({ items, selectedItemId })],
+      future: nextFuture,
+      canUndo: true,
+      canRedo: nextFuture.length > 0,
+    });
+  },
 }));
+
+// Clona gli snapshot per evitare che undo/redo condividano riferimenti mutabili.
+function cloneSnapshot(
+  snapshot: ConfiguratorHistorySnapshot
+): ConfiguratorHistorySnapshot {
+  return {
+    items: snapshot.items.map((item) => ({
+      ...item,
+      position: [...item.position],
+    })),
+    selectedItemId: snapshot.selectedItemId,
+  };
+}

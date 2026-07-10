@@ -76,9 +76,14 @@ export function ProductPropertiesPanel() {
       {propertiesExpanded ? (
         <>
           <div className="mb-4 mt-4 rounded-xl bg-gray-50 p-3">
-            <p className="font-medium">{name}</p>
+            <p className="truncate font-medium" title={name}>
+              {name}
+            </p>
             {selectedItem.code ? (
-              <p className="text-xs text-gray-500">
+              <p
+                className="truncate text-xs text-gray-500"
+                title={selectedItem.code}
+              >
                 {t.code}: {selectedItem.code}
               </p>
             ) : null}

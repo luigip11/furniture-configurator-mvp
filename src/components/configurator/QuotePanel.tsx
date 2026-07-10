@@ -74,10 +74,12 @@ export function QuotePanel() {
                 key={item.id}
                 className="flex items-start justify-between gap-3 rounded-xl bg-gray-50 p-3"
               >
-                <div>
-                  <p className="text-sm font-medium">{name}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium" title={name}>
+                    {name}
+                  </p>
                   {item.code ? (
-                    <p className="mt-1 text-xs text-gray-500">
+                    <p className="mt-1 truncate text-xs text-gray-500" title={item.code}>
                       {t.code}: {item.code}
                     </p>
                   ) : null}
@@ -96,7 +98,7 @@ export function QuotePanel() {
                   ) : null}
                 </div>
 
-                <p className="text-sm font-medium">
+                <p className="shrink-0 text-sm font-medium">
                   {item.price ? `€ ${item.price}` : "-"}
                 </p>
               </div>

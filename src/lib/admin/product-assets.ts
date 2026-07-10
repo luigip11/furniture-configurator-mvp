@@ -1,6 +1,6 @@
 import type { ProductFormValues } from "@/lib/admin/product-form";
 
-export const PRODUCT_ASSET_BUCKET = "produce-assets";
+export const PRODUCT_ASSET_BUCKET = "product-assets";
 
 export type ProductAssetField = Extract<
   keyof ProductFormValues,

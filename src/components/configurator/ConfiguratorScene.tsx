@@ -3,7 +3,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, ThreeEvent, useThree } from "@react-three/fiber";
 import { Edges, Grid, OrbitControls } from "@react-three/drei";
-import { Eye, EyeOff, Info, Minus, Plus, RotateCw, Trash2 } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  Info,
+  Minus,
+  Plus,
+  Redo2,
+  RotateCw,
+  Trash2,
+  Undo2,
+} from "lucide-react";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { ProductModel } from "@/components/configurator/ProductModel";
@@ -40,21 +50,26 @@ type ViewCommand = {
 };
 
 const CAMERA_MIN_DISTANCE = 1.2;
-const CAMERA_MAX_DISTANCE = 12;
+const CAMERA_DEFAULT_MAX_DISTANCE = 11;
+const CAMERA_MAX_DISTANCE_CAP = 15;
+const CAMERA_DISTANCE_LIMIT_EPSILON = 0.04;
 const CAMERA_ROTATION_STEP = Math.PI / 8;
 
 function SceneContent({
   labelsVisible,
+  onZoomOutLimitChange,
   sceneMode,
   viewCommand,
 }: {
   labelsVisible: boolean;
+  onZoomOutLimitChange: (isAtLimit: boolean) => void;
   sceneMode: SceneMode;
   viewCommand: ViewCommand | null;
 }) {
   const items = useConfiguratorStore((state) => state.items);
   const selectItem = useConfiguratorStore((state) => state.selectItem);
   const updatePosition = useConfiguratorStore((state) => state.updatePosition);
+  const commitHistory = useConfiguratorStore((state) => state.commitHistory);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const dragRef = useRef<DragRefState | null>(null);
@@ -68,6 +83,16 @@ function SceneContent({
   const pointerRef = useRef(new THREE.Vector2());
   const raycasterRef = useRef(new THREE.Raycaster());
   const verticalAxis = useMemo(() => new THREE.Vector3(0, 1, 0), []);
+  const maxCameraDistance = useMemo(() => getMaxCameraDistance(items), [items]);
+
+  const updateZoomOutLimit = useCallback(() => {
+    const target = controlsRef.current?.target || new THREE.Vector3(0, 0, 0);
+    const distance = camera.position.distanceTo(target);
+
+    onZoomOutLimitChange(
+      distance >= maxCameraDistance - CAMERA_DISTANCE_LIMIT_EPSILON
+    );
+  }, [camera.position, maxCameraDistance, onZoomOutLimitChange]);
 
   const getGroundPoint = useCallback(
     (event: PointerEvent) => {
@@ -94,11 +119,11 @@ function SceneContent({
 
       if (!currentDrag) return;
 
-      updatePosition(currentDrag.itemId, [
-        point.x + currentDrag.offsetX,
-        0,
-        point.z + currentDrag.offsetZ,
-      ]);
+      updatePosition(
+        currentDrag.itemId,
+        [point.x + currentDrag.offsetX, 0, point.z + currentDrag.offsetZ],
+        { recordHistory: false }
+      );
     },
     [updatePosition]
   );
@@ -156,7 +181,7 @@ function SceneContent({
       const nextDistance = THREE.MathUtils.clamp(
         cameraOffset.length() * zoomFactor,
         CAMERA_MIN_DISTANCE,
-        CAMERA_MAX_DISTANCE
+        maxCameraDistance
       );
 
       cameraOffset.setLength(nextDistance);
@@ -170,12 +195,31 @@ function SceneContent({
     camera.lookAt(target);
     camera.updateProjectionMatrix();
     controlsRef.current?.update();
-  }, [camera, verticalAxis, viewCommand]);
+    updateZoomOutLimit();
+  }, [camera, maxCameraDistance, updateZoomOutLimit, verticalAxis, viewCommand]);
+
+  useEffect(() => {
+    const target = controlsRef.current?.target || new THREE.Vector3(0, 0, 0);
+    const cameraOffset = camera.position.clone().sub(target);
+
+    if (cameraOffset.length() <= maxCameraDistance) {
+      updateZoomOutLimit();
+      return;
+    }
+
+    cameraOffset.setLength(maxCameraDistance);
+    camera.position.copy(target).add(cameraOffset);
+    camera.lookAt(target);
+    camera.updateProjectionMatrix();
+    controlsRef.current?.update();
+    updateZoomOutLimit();
+  }, [camera, maxCameraDistance, updateZoomOutLimit]);
 
   const handleDragStart = (
     item: ConfiguratorItem,
     event: ThreeEvent<PointerEvent>
   ) => {
+    commitHistory();
     const point =
       event.ray.intersectPlane(groundPlane, planePointRef.current) ||
       event.point;
@@ -252,6 +296,9 @@ function SceneContent({
         ref={controlsRef}
         makeDefault
         enabled={dragState === null}
+        minDistance={CAMERA_MIN_DISTANCE}
+        maxDistance={maxCameraDistance}
+        onChange={updateZoomOutLimit}
       />
     </>
   );
@@ -339,9 +386,14 @@ export function ConfiguratorScene({
   const setSceneMode = useConfiguratorStore((state) => state.setSceneMode);
   const selectItem = useConfiguratorStore((state) => state.selectItem);
   const removeItem = useConfiguratorStore((state) => state.removeItem);
+  const canRedo = useConfiguratorStore((state) => state.canRedo);
+  const canUndo = useConfiguratorStore((state) => state.canUndo);
+  const redo = useConfiguratorStore((state) => state.redo);
+  const undo = useConfiguratorStore((state) => state.undo);
   const [labelsVisible, setLabelsVisible] = useState(true);
   const [mobileHintVisible, setMobileHintVisible] = useState(false);
   const [viewCommand, setViewCommand] = useState<ViewCommand | null>(null);
+  const [zoomOutDisabled, setZoomOutDisabled] = useState(false);
   const viewCommandIdRef = useRef(0);
 
   const t = dictionary[locale];
@@ -438,6 +490,7 @@ export function ConfiguratorScene({
           <Plus size={18} aria-hidden="true" />
         </MapControlButton>
         <MapControlButton
+          disabled={zoomOutDisabled}
           label={t.zoomOut}
           onClick={() => sendViewCommand("zoom-out")}
         >
@@ -448,6 +501,23 @@ export function ConfiguratorScene({
           onClick={() => sendViewCommand("rotate")}
         >
           <RotateCw size={18} aria-hidden="true" />
+        </MapControlButton>
+      </div>
+
+      <div className="absolute bottom-4 left-4 z-10 flex flex-col gap-2 rounded-lg bg-white/95 p-1 shadow-md ring-1 ring-black/10">
+        <MapControlButton
+          disabled={!canUndo}
+          label={locale === "it" ? "Annulla" : "Undo"}
+          onClick={undo}
+        >
+          <Undo2 size={18} aria-hidden="true" />
+        </MapControlButton>
+        <MapControlButton
+          disabled={!canRedo}
+          label={locale === "it" ? "Ripristina" : "Redo"}
+          onClick={redo}
+        >
+          <Redo2 size={18} aria-hidden="true" />
         </MapControlButton>
       </div>
 
@@ -500,11 +570,27 @@ export function ConfiguratorScene({
       >
         <SceneContent
           labelsVisible={labelsVisible}
+          onZoomOutLimitChange={setZoomOutDisabled}
           sceneMode={sceneMode}
           viewCommand={viewCommand}
         />
       </Canvas>
     </section>
+  );
+}
+
+// Adatta il limite di zoom-out all'ingombro reale dei moduli in scena.
+function getMaxCameraDistance(items: ConfiguratorItem[]) {
+  if (items.length === 0) return CAMERA_DEFAULT_MAX_DISTANCE;
+
+  const footprint = getFootprintSummary(items);
+  const largestFootprintSceneUnits =
+    Math.max(footprint.widthMm, footprint.depthMm) / CONFIGURATOR_SCENE_SCALE;
+
+  return THREE.MathUtils.clamp(
+    largestFootprintSceneUnits * 2.2 + 5.5,
+    CAMERA_DEFAULT_MAX_DISTANCE,
+    CAMERA_MAX_DISTANCE_CAP
   );
 }
 
@@ -569,12 +655,14 @@ function FootprintValue({ label, value }: { label: string; value: number }) {
 
 type MapControlButtonProps = {
   children: React.ReactNode;
+  disabled?: boolean;
   label: string;
   onClick: () => void;
 };
 
 function MapControlButton({
   children,
+  disabled = false,
   label,
   onClick,
 }: MapControlButtonProps) {
@@ -582,9 +670,10 @@ function MapControlButton({
     <button
       type="button"
       aria-label={label}
+      disabled={disabled}
       title={label}
       onClick={onClick}
-      className="flex h-9 w-9 items-center justify-center rounded-md text-gray-800 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-600"
+      className="flex h-9 w-9 items-center justify-center rounded-md text-gray-800 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent"
     >
       {children}
     </button>

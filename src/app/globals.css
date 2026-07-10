@@ -28,3 +28,8 @@ body {
   height: 100% !important;
   width: 100% !important;
 }
+
+.catalog-search-input::-webkit-search-cancel-button,
+.catalog-search-input::-webkit-search-decoration {
+  appearance: none;
+}

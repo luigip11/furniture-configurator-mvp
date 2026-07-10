@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  clampItemPositionToGridBounds,
+  CONFIGURATOR_GRID_HALF_SIZE,
   getItemSceneWidth,
   getNextPosition,
   normalizeRotation,
@@ -50,4 +52,19 @@ test("getNextPosition parte dall'origine quando non ci sono moduli", () => {
 
 test("getNextPosition affianca il nuovo modulo al bordo destro", () => {
   assert.deepEqual(getNextPosition([baseItem], 700), [1, 0, 0]);
+});
+
+test("clampItemPositionToGridBounds mantiene il modulo nel piano quadrettato", () => {
+  assert.deepEqual(clampItemPositionToGridBounds(baseItem, [20, 0, -20]), [
+    CONFIGURATOR_GRID_HALF_SIZE - 0.5,
+    0,
+    -6.75,
+  ]);
+});
+
+test("clampItemPositionToGridBounds considera l'ingombro ruotato", () => {
+  assert.deepEqual(
+    clampItemPositionToGridBounds({ ...baseItem, rotationY: 90 }, [20, 0, 20]),
+    [6.75, 0, CONFIGURATOR_GRID_HALF_SIZE - 0.5]
+  );
 });

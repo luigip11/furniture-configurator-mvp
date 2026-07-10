@@ -11,6 +11,7 @@ export type Category = {
 export type Product = {
   id: string;
   category_id: string | null;
+  created_at?: string | null;
   name_it: string;
   name_en: string | null;
   code: string | null;

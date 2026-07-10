@@ -6,9 +6,13 @@ import { Product } from "@/types/configurator";
 import { useConfiguratorStore } from "@/store/configurator-store";
 import { dictionary } from "@/lib/i18n/dictionary";
 
+export type CatalogCollapsedGroups = Record<string, boolean>;
+
 type CatalogPanelProps = {
+  collapsedGroups: CatalogCollapsedGroups;
   products: Product[];
   onCollapse?: () => void;
+  onToggleGroup: (groupId: string, collapsed: boolean) => void;
 };
 
 type CatalogGroup = {
@@ -28,12 +32,17 @@ const CATALOG_GROUPS = [
   { id: "portal", titleKey: "groupPortal" },
 ] satisfies { id: string; titleKey: keyof typeof dictionary.it }[];
 
-export function CatalogPanel({ products, onCollapse }: CatalogPanelProps) {
-  const [collapsedGroups, setCollapsedGroups] = useState<
-    Record<string, boolean>
-  >(() =>
-    Object.fromEntries(CATALOG_GROUPS.map((group) => [group.id, true]))
-  );
+// Crea lo stato iniziale del catalogo con tutte le sezioni chiuse.
+export function createDefaultCatalogCollapsedGroups(): CatalogCollapsedGroups {
+  return Object.fromEntries(CATALOG_GROUPS.map((group) => [group.id, true]));
+}
+
+export function CatalogPanel({
+  collapsedGroups,
+  products,
+  onCollapse,
+  onToggleGroup,
+}: CatalogPanelProps) {
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [searchText, setSearchText] = useState("");
   const locale = useConfiguratorStore((state) => state.locale);
@@ -131,12 +140,7 @@ export function CatalogPanel({ products, onCollapse }: CatalogPanelProps) {
                 <button
                   type="button"
                   aria-expanded={!collapsed}
-                  onClick={() =>
-                    setCollapsedGroups((currentGroups) => ({
-                      ...currentGroups,
-                      [group.id]: !collapsed,
-                    }))
-                  }
+                  onClick={() => onToggleGroup(group.id, !collapsed)}
                   className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
                 >
                   <span>

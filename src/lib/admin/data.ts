@@ -1,8 +1,9 @@
-import { supabase } from "@/lib/supabase/client";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { Category, Product } from "@/types/configurator";
 
 export async function getAdminCategories(): Promise<Category[]> {
-  const { data, error } = await supabase
+  // Le pagine admin devono leggere anche elementi nascosti dalle policy pubbliche.
+  const { data, error } = await getSupabaseAdmin()
     .from("categories")
     .select("*")
     .order("sort_order", { ascending: true, nullsFirst: false })
@@ -17,7 +18,8 @@ export async function getAdminCategories(): Promise<Category[]> {
 }
 
 export async function getAdminProducts(): Promise<Product[]> {
-  const { data, error } = await supabase
+  // Usa la service role solo server-side per includere bozze e prodotti nascosti.
+  const { data, error } = await getSupabaseAdmin()
     .from("products")
     .select("*")
     .order("created_at", { ascending: false });

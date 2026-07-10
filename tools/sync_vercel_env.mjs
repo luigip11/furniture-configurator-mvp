@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Sincronizza su Vercel solo le variabili pubbliche richieste dalla build Next.js.
+ * Sincronizza su Vercel le variabili richieste dalla build e dalle route server.
  *
  * I valori vengono letti da .env.local e passati alla CLI tramite stdin, evitando
  * di stamparli nei log del terminale.
@@ -11,7 +11,11 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
-const PUBLIC_ENV_KEYS = ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY"];
+const VERCEL_ENV_KEYS = [
+  "NEXT_PUBLIC_SUPABASE_URL",
+  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+  "SUPABASE_SERVICE_ROLE_KEY",
+];
 
 // Legge un .env semplice preservando solo chiavi esplicitamente consentite.
 async function readDotEnv(filePath) {
@@ -27,7 +31,7 @@ async function readDotEnv(filePath) {
 
     const key = trimmed.slice(0, separatorIndex).trim();
     const rawValue = trimmed.slice(separatorIndex + 1).trim();
-    if (PUBLIC_ENV_KEYS.includes(key)) {
+    if (VERCEL_ENV_KEYS.includes(key)) {
       values.set(key, rawValue.replace(/^["']|["']$/g, ""));
     }
   }
@@ -76,7 +80,7 @@ async function run() {
   const envPath = path.join(process.cwd(), ".env.local");
   const env = await readDotEnv(envPath);
 
-  for (const key of PUBLIC_ENV_KEYS) {
+  for (const key of VERCEL_ENV_KEYS) {
     const value = env.get(key);
     if (!value) {
       throw new Error(`${key} mancante in .env.local.`);

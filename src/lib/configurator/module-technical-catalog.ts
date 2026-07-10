@@ -3,22 +3,26 @@ import {
   MODULE_VARIANT_OPTIONS,
 } from "../../types/configurator.ts";
 import type { ModuleVariantKey } from "../../types/configurator.ts";
+import { GENERATED_TECHNICAL_CATALOG } from "./generated-technical-catalog.ts";
 
 // Catalogo tecnico derivato dalla legenda allegata: collega prodotti, varianti e distinta base.
 export type ModuleBomComponent = {
   code: string;
   depthMm?: number | string | null;
+  excelRow?: number;
   heightMm?: number | string | null;
   name: string;
   optional?: boolean;
-  quantity: number | null;
+  quantity?: number | string | null;
   thicknessMm?: number | string | null;
   widthMm?: number | string | null;
 };
 
-type ModuleTechnicalDefinition = {
+export type ModuleTechnicalDefinition = {
   bomByVariant: Partial<Record<ModuleVariantKey, ModuleBomComponent[]>>;
   configurableVariants: ModuleVariantKey[];
+  excelSource?: string;
+  excelSystemName?: string;
 };
 
 const ALL_SIDE_VARIANTS: ModuleVariantKey[] = MODULE_VARIANT_OPTIONS.map(
@@ -435,7 +439,7 @@ export function normalizeProductCode(code?: string | null) {
 
 // Restituisce le varianti fianchi disponibili per un prodotto configurabile.
 export function getAvailableModuleVariants(code?: string | null) {
-  const definition = TECHNICAL_CATALOG[normalizeProductCode(code)];
+  const definition = getTechnicalDefinition(code);
 
   return definition?.configurableVariants || ALL_SIDE_VARIANTS;
 }
@@ -462,13 +466,23 @@ export function getModuleBillOfMaterials(
   code: string | null | undefined,
   variantKey: ModuleVariantKey
 ) {
-  const definition = TECHNICAL_CATALOG[normalizeProductCode(code)];
+  const definition = getTechnicalDefinition(code);
 
   if (!definition) return [];
 
   const safeVariant = getSafeModuleVariant(code, variantKey);
 
   return definition.bomByVariant[safeVariant] || [];
+}
+
+// Preferisce la distinta generata dall'Excel e mantiene il catalogo storico come fallback.
+function getTechnicalDefinition(code?: string | null) {
+  const normalizedCode = normalizeProductCode(code);
+
+  return (
+    GENERATED_TECHNICAL_CATALOG[normalizedCode] ||
+    TECHNICAL_CATALOG[normalizedCode]
+  );
 }
 
 function side(

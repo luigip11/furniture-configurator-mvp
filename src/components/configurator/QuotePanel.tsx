@@ -92,7 +92,7 @@ export function QuotePanel() {
                     {item.widthMm} × {item.heightMm} × {item.depthMm} mm
                   </p>
                   {bomCount > 0 ? (
-                    <p className="mt-1 text-xs text-gray-500">
+                    <p className="mt-1 text-xs text-black-500">
                       {t.technicalComponents}: {bomCount}
                     </p>
                   ) : null}

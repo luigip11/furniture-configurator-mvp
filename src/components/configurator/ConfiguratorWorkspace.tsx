@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import { Plus } from "lucide-react";
-import { CatalogPanel } from "@/components/configurator/CatalogPanel";
+import {
+  CatalogPanel,
+  createDefaultCatalogCollapsedGroups,
+  type CatalogCollapsedGroups,
+} from "@/components/configurator/CatalogPanel";
 import { ConfiguratorScene } from "@/components/configurator/ConfiguratorScene";
 import { ProductPropertiesPanel } from "@/components/configurator/ProductPropertiesPanel";
 import { QuotePanel } from "@/components/configurator/QuotePanel";
@@ -18,11 +22,21 @@ export function ConfiguratorWorkspace({ products }: ConfiguratorWorkspaceProps) 
   const [catalogCollapsed, setCatalogCollapsed] = useState(false);
   const [catalogExpandedWithSelection, setCatalogExpandedWithSelection] =
     useState(false);
+  const [catalogCollapsedGroups, setCatalogCollapsedGroups] =
+    useState<CatalogCollapsedGroups>(() => createDefaultCatalogCollapsedGroups());
   const locale = useConfiguratorStore((state) => state.locale);
   const selectedItemId = useConfiguratorStore((state) => state.selectedItemId);
   const t = dictionary[locale];
   const mobileSelectionCollapsed =
     Boolean(selectedItemId) && !catalogExpandedWithSelection;
+
+  // Mantiene stabile l'apertura delle sezioni anche se il pannello viene rimontato dal layout responsive.
+  function toggleCatalogGroup(groupId: string, collapsed: boolean) {
+    setCatalogCollapsedGroups((currentGroups) => ({
+      ...currentGroups,
+      [groupId]: collapsed,
+    }));
+  }
 
   const gridClassName = catalogCollapsed
     ? "grid min-w-0 flex-1 gap-4 transition-[grid-template-columns] lg:h-full lg:min-h-0 lg:grid-cols-[40px_minmax(0,1fr)_300px]"
@@ -51,21 +65,25 @@ export function ConfiguratorWorkspace({ products }: ConfiguratorWorkspaceProps) 
             </div>
             <div className="hidden h-full lg:block">
               <CatalogPanel
+                collapsedGroups={catalogCollapsedGroups}
                 products={products}
                 onCollapse={() => {
                   setCatalogExpandedWithSelection(false);
                   setCatalogCollapsed(true);
                 }}
+                onToggleGroup={toggleCatalogGroup}
               />
             </div>
           </>
         ) : (
           <CatalogPanel
+            collapsedGroups={catalogCollapsedGroups}
             products={products}
             onCollapse={() => {
               setCatalogExpandedWithSelection(false);
               setCatalogCollapsed(true);
             }}
+            onToggleGroup={toggleCatalogGroup}
           />
         )}
       </div>

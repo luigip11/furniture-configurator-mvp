@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Box,
   CheckCircle2,
+  ChevronDown,
   Eye,
   EyeOff,
   FileBox,
@@ -13,6 +14,7 @@ import {
   Pencil,
   Plus,
   Save,
+  Search,
   Trash2,
   Upload,
   X,
@@ -31,6 +33,10 @@ import {
   uploadProductAsset,
   type ProductAssetField,
 } from "@/lib/admin/product-assets";
+import {
+  filterAndSortAdminProducts,
+  type ProductSortOrder,
+} from "@/lib/admin/product-list";
 
 type ProductAdminProps = {
   initialProducts: Product[];
@@ -46,6 +52,9 @@ export function ProductAdmin({
   const [form, setForm] = useState<ProductFormValues>(emptyProductForm);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [sortOrder, setSortOrder] = useState<ProductSortOrder>("newest");
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const [searchText, setSearchText] = useState("");
   const [uploadingField, setUploadingField] = useState<ProductAssetField | null>(
     null
   );
@@ -54,6 +63,21 @@ export function ProductAdmin({
   const categoryById = useMemo(() => {
     return new Map(categories.map((category) => [category.id, category]));
   }, [categories]);
+  const categoryNameById = useMemo(() => {
+    return new Map(
+      categories.map((category) => [category.id, category.name] as const)
+    );
+  }, [categories]);
+  const visibleProducts = useMemo(
+    () =>
+      filterAndSortAdminProducts(products, {
+        categoryNameById,
+        searchText,
+        sortOrder,
+      }),
+    [categoryNameById, products, searchText, sortOrder]
+  );
+  const hasActiveSearch = searchText.trim().length > 0;
 
   const editingProduct = products.find(
     (product) => product.id === editingProductId
@@ -76,6 +100,17 @@ export function ProductAdmin({
     setForm(productToForm(product));
     setEditingProductId(product.id);
     setErrorMessage(null);
+  }
+
+  // Alterna il campo ricerca lasciando pulita la lista quando viene chiuso.
+  function toggleSearch() {
+    setSearchExpanded((expanded) => {
+      if (expanded) {
+        setSearchText("");
+      }
+
+      return !expanded;
+    });
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -133,20 +168,27 @@ export function ProductAdmin({
 
   async function togglePublished(product: Product) {
     setErrorMessage(null);
+    const nextPublishedValue = !product.is_published;
 
-    const { data, error } = await supabase
-      .from("products")
-      .update({ is_published: !product.is_published })
-      .eq("id", product.id)
-      .select("*")
-      .single();
+    const response = await fetch(`/api/admin/products/${product.id}/publish`, {
+      body: JSON.stringify({ is_published: nextPublishedValue }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "PATCH",
+    });
+    const result = (await response.json().catch(() => null)) as
+      | { message?: string; product?: Product }
+      | null;
 
-    if (error) {
-      setErrorMessage(error.message);
+    if (!response.ok || !result?.product) {
+      setErrorMessage(
+        result?.message || "Impossibile aggiornare la pubblicazione."
+      );
       return;
     }
 
-    const savedProduct = data as Product;
+    const savedProduct = result.product;
     setProducts((currentProducts) =>
       currentProducts.map((currentProduct) =>
         currentProduct.id === savedProduct.id ? savedProduct : currentProduct
@@ -230,7 +272,24 @@ export function ProductAdmin({
               {products.length} prodotti in catalogo
             </p>
           </div>
-          <div className="flex gap-2 text-xs font-medium">
+          <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
+            <div className="relative">
+              <select
+                value={sortOrder}
+                onChange={(event) =>
+                  setSortOrder(event.target.value as ProductSortOrder)
+                }
+                className="h-8 appearance-none rounded-full border border-gray-200 bg-white pl-3 pr-8 text-xs font-medium text-gray-700 shadow-sm outline-none transition hover:border-gray-300 focus:border-gray-400 focus:ring-2 focus:ring-gray-100"
+                aria-label="Ordina prodotti"
+              >
+                <option value="newest">Più recenti</option>
+                <option value="oldest">Meno recenti</option>
+              </select>
+              <ChevronDown
+                className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400"
+                aria-hidden="true"
+              />
+            </div>
             <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-emerald-700 ring-1 ring-emerald-100">
               {products.filter((product) => product.is_published).length} online
             </span>
@@ -240,11 +299,58 @@ export function ProductAdmin({
           </div>
         </div>
 
+        <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-3">
+          {searchExpanded ? (
+            <div className="relative min-w-0 flex-1">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+                aria-hidden="true"
+              />
+              <input
+                type="text"
+                value={searchText}
+                onChange={(event) => setSearchText(event.target.value)}
+                placeholder="Cerca prodotti"
+                className="h-10 w-full rounded-lg border border-gray-200 bg-white pl-9 pr-9 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-100"
+                autoFocus
+              />
+              {hasActiveSearch ? (
+                <button
+                  type="button"
+                  aria-label="Cancella ricerca"
+                  title="Cancella ricerca"
+                  onClick={() => setSearchText("")}
+                  className="absolute right-2 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
+          ) : (
+            <p className="min-w-0 flex-1 truncate text-sm font-medium text-gray-600">
+              Catalogo prodotti
+            </p>
+          )}
+          <button
+            type="button"
+            aria-label={searchExpanded ? "Chiudi ricerca" : "Cerca"}
+            title={searchExpanded ? "Chiudi ricerca" : "Cerca"}
+            onClick={toggleSearch}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:border-gray-300 hover:bg-gray-50"
+          >
+            <Search className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+
         {products.length === 0 ? (
           <p className="p-4 text-sm text-gray-500">Nessun prodotto presente.</p>
+        ) : visibleProducts.length === 0 ? (
+          <p className="p-4 text-sm text-gray-500">
+            Nessun prodotto corrisponde alla ricerca.
+          </p>
         ) : (
           <div className="divide-y divide-gray-100">
-            {products.map((product) => {
+            {visibleProducts.map((product) => {
               const categoryName = product.category_id
                 ? categoryById.get(product.category_id)?.name
                 : null;

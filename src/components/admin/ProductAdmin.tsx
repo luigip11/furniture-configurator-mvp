@@ -122,35 +122,44 @@ export function ProductAdmin({
       const payload = buildProductPayload(form);
 
       if (editingProductId) {
-        const { data, error } = await supabase
-          .from("products")
-          .update(payload)
-          .eq("id", editingProductId)
-          .select("*")
-          .single();
+        const response = await fetch(`/api/admin/products/${editingProductId}`, {
+          body: JSON.stringify(payload),
+          headers: {
+            "Content-Type": "application/json",
+          },
+          method: "PATCH",
+        });
+        const result = (await response.json().catch(() => null)) as
+          | { message?: string; product?: Product }
+          | null;
 
-        if (error) {
-          throw error;
+        if (!response.ok || !result?.product) {
+          throw new Error(result?.message || "Impossibile salvare il prodotto.");
         }
 
-        const savedProduct = data as Product;
+        const savedProduct = result.product;
         setProducts((currentProducts) =>
           currentProducts.map((product) =>
             product.id === savedProduct.id ? savedProduct : product
           )
         );
       } else {
-        const { data, error } = await supabase
-          .from("products")
-          .insert(payload)
-          .select("*")
-          .single();
+        const response = await fetch("/api/admin/products", {
+          body: JSON.stringify(payload),
+          headers: {
+            "Content-Type": "application/json",
+          },
+          method: "POST",
+        });
+        const result = (await response.json().catch(() => null)) as
+          | { message?: string; product?: Product }
+          | null;
 
-        if (error) {
-          throw error;
+        if (!response.ok || !result?.product) {
+          throw new Error(result?.message || "Impossibile creare il prodotto.");
         }
 
-        setProducts((currentProducts) => [data as Product, ...currentProducts]);
+        setProducts((currentProducts) => [result.product as Product, ...currentProducts]);
       }
 
       resetForm();
@@ -503,18 +512,26 @@ export function ProductAdmin({
         <div className="space-y-4">
           <label className="block text-sm font-medium text-gray-700">
             Categoria
-            <select
-              value={form.category_id}
-              onChange={(event) => updateForm("category_id", event.target.value)}
-              className="mt-1 h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-100"
-            >
-              <option value="">Senza categoria</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
+            <div className="relative mt-1">
+              <select
+                value={form.category_id}
+                onChange={(event) =>
+                  updateForm("category_id", event.target.value)
+                }
+                className="h-10 w-full appearance-none rounded-lg border border-gray-300 bg-white pl-3 pr-12 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-100"
+              >
+                <option value="">Senza categoria</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500"
+                aria-hidden="true"
+              />
+            </div>
           </label>
 
           <div className="grid gap-3 sm:grid-cols-2">

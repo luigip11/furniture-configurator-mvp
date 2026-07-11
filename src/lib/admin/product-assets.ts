@@ -96,32 +96,28 @@ export async function uploadProductAsset({
   productCode?: string | null;
 }) {
   validateProductAssetFile(field, file);
-  const { supabase } = await import("@/lib/supabase/client");
 
-  const path = buildProductAssetPath({
-    field,
-    fileName: file.name,
-    productCode,
-    randomSuffix: crypto.randomUUID().slice(0, 8),
-    timestamp: Date.now(),
-  });
-  const { error } = await supabase.storage
-    .from(PRODUCT_ASSET_BUCKET)
-    .upload(path, file, {
-      cacheControl: "3600",
-      contentType: file.type || undefined,
-      upsert: false,
-    });
+  const formData = new FormData();
+  formData.append("field", field);
+  formData.append("file", file);
 
-  if (error) {
-    throw error;
+  if (productCode) {
+    formData.append("productCode", productCode);
   }
 
-  const { data } = supabase.storage
-    .from(PRODUCT_ASSET_BUCKET)
-    .getPublicUrl(path);
+  const response = await fetch("/api/admin/product-assets", {
+    body: formData,
+    method: "POST",
+  });
+  const result = (await response.json().catch(() => null)) as
+    | { message?: string; publicUrl?: string }
+    | null;
 
-  return data.publicUrl;
+  if (!response.ok || !result?.publicUrl) {
+    throw new Error(result?.message || "Impossibile caricare il file.");
+  }
+
+  return result.publicUrl;
 }
 
 // Normalizza il nome file evitando caratteri problematici nei path storage.

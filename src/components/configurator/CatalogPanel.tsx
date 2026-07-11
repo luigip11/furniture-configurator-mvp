@@ -197,7 +197,18 @@ function CatalogProductCard({
     locale === "it" ? product.name_it : product.name_en || product.name_it;
 
   return (
-    <div className="rounded-lg border bg-white p-3">
+    <div
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.effectAllowed = "copy";
+        event.dataTransfer.setData(
+          "application/x-configurator-product-id",
+          product.id
+        );
+        event.dataTransfer.setData("text/plain", product.id);
+      }}
+      className="cursor-grab rounded-lg border bg-white p-3 active:cursor-grabbing"
+    >
       <div className="mb-2">
         <p className="text-sm font-medium">{name}</p>
         {product.code ? (

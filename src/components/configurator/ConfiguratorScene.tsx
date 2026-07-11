@@ -27,6 +27,7 @@ import {
 } from "@/store/configurator-calculations";
 import {
   ConfiguratorItem,
+  Product,
   SCENE_MODE_OPTIONS,
   SceneMode,
 } from "@/types/configurator";
@@ -40,6 +41,13 @@ type DragState = {
 type DragRefState = DragState & {
   offsetX: number;
   offsetZ: number;
+};
+
+type CatalogDropRequest = {
+  clientX: number;
+  clientY: number;
+  id: number;
+  productId: string;
 };
 
 type ViewCommandType = "zoom-in" | "zoom-out" | "rotate";
@@ -56,17 +64,24 @@ const CAMERA_DISTANCE_LIMIT_EPSILON = 0.04;
 const CAMERA_ROTATION_STEP = Math.PI / 8;
 
 function SceneContent({
+  catalogDropRequest,
   labelsVisible,
   onZoomOutLimitChange,
+  products,
   sceneMode,
   viewCommand,
 }: {
+  catalogDropRequest: CatalogDropRequest | null;
   labelsVisible: boolean;
   onZoomOutLimitChange: (isAtLimit: boolean) => void;
+  products: Product[];
   sceneMode: SceneMode;
   viewCommand: ViewCommand | null;
 }) {
   const items = useConfiguratorStore((state) => state.items);
+  const addProductAtPosition = useConfiguratorStore(
+    (state) => state.addProductAtPosition
+  );
   const selectItem = useConfiguratorStore((state) => state.selectItem);
   const updatePosition = useConfiguratorStore((state) => state.updatePosition);
   const commitHistory = useConfiguratorStore((state) => state.commitHistory);
@@ -95,12 +110,12 @@ function SceneContent({
   }, [camera.position, maxCameraDistance, onZoomOutLimitChange]);
 
   const getGroundPoint = useCallback(
-    (event: PointerEvent) => {
+    (clientX: number, clientY: number) => {
       const bounds = gl.domElement.getBoundingClientRect();
 
       pointerRef.current.set(
-        ((event.clientX - bounds.left) / bounds.width) * 2 - 1,
-        -((event.clientY - bounds.top) / bounds.height) * 2 + 1
+        ((clientX - bounds.left) / bounds.width) * 2 - 1,
+        -((clientY - bounds.top) / bounds.height) * 2 + 1
       );
 
       raycasterRef.current.setFromCamera(pointerRef.current, camera);
@@ -148,7 +163,7 @@ function SceneContent({
 
       if (!currentDrag || event.pointerId !== currentDrag.pointerId) return;
 
-      const point = getGroundPoint(event);
+      const point = getGroundPoint(event.clientX, event.clientY);
 
       if (point) moveDraggedItem(point);
     };
@@ -167,6 +182,22 @@ function SceneContent({
       window.removeEventListener("pointercancel", handleWindowPointerUp);
     };
   }, [getGroundPoint, moveDraggedItem, stopDragging]);
+
+  useEffect(() => {
+    if (!catalogDropRequest) return;
+
+    const product = products.find(
+      (currentProduct) => currentProduct.id === catalogDropRequest.productId
+    );
+    const point = getGroundPoint(
+      catalogDropRequest.clientX,
+      catalogDropRequest.clientY
+    );
+
+    if (!product || !point) return;
+
+    addProductAtPosition(product, [point.x, 0, point.z]);
+  }, [addProductAtPosition, catalogDropRequest, getGroundPoint, products]);
 
   useEffect(() => {
     if (!viewCommand || viewCommand.id === lastViewCommandIdRef.current) return;
@@ -374,10 +405,12 @@ function SceneHint({
 
 type ConfiguratorSceneProps = {
   compactHint?: boolean;
+  products: Product[];
 };
 
 export function ConfiguratorScene({
   compactHint = false,
+  products,
 }: ConfiguratorSceneProps) {
   const locale = useConfiguratorStore((state) => state.locale);
   const items = useConfiguratorStore((state) => state.items);
@@ -394,7 +427,10 @@ export function ConfiguratorScene({
   const [mobileHintVisible, setMobileHintVisible] = useState(false);
   const [viewCommand, setViewCommand] = useState<ViewCommand | null>(null);
   const [zoomOutDisabled, setZoomOutDisabled] = useState(false);
+  const [catalogDropRequest, setCatalogDropRequest] =
+    useState<CatalogDropRequest | null>(null);
   const viewCommandIdRef = useRef(0);
+  const catalogDropIdRef = useRef(0);
 
   const t = dictionary[locale];
   const selectedItem = items.find((item) => item.id === selectedItemId);
@@ -410,8 +446,39 @@ export function ConfiguratorScene({
     setViewCommand({ id: viewCommandIdRef.current, type });
   };
 
+  // Traduce il drop HTML del catalogo in una richiesta che la scena 3D converte in coordinate mondo.
+  function handleCatalogDrop(event: React.DragEvent<HTMLElement>) {
+    const productId = event.dataTransfer.getData(
+      "application/x-configurator-product-id"
+    );
+
+    if (!productId) return;
+
+    event.preventDefault();
+    catalogDropIdRef.current += 1;
+    setCatalogDropRequest({
+      clientX: event.clientX,
+      clientY: event.clientY,
+      id: catalogDropIdRef.current,
+      productId,
+    });
+  }
+
   return (
-    <section className="configurator-scene relative h-[520px] w-full overflow-hidden rounded-2xl border bg-gray-100 shadow-sm lg:h-full lg:min-h-0">
+    <section
+      className="configurator-scene relative h-[520px] w-full overflow-hidden rounded-2xl border bg-gray-100 shadow-sm lg:h-full lg:min-h-0"
+      onDragOver={(event) => {
+        if (
+          event.dataTransfer.types.includes(
+            "application/x-configurator-product-id"
+          )
+        ) {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+        }
+      }}
+      onDrop={handleCatalogDrop}
+    >
       <button
         type="button"
         aria-expanded={mobileHintVisible}
@@ -569,8 +636,10 @@ export function ConfiguratorScene({
         onPointerMissed={() => selectItem(null)}
       >
         <SceneContent
+          catalogDropRequest={catalogDropRequest}
           labelsVisible={labelsVisible}
           onZoomOutLimitChange={setZoomOutDisabled}
+          products={products}
           sceneMode={sceneMode}
           viewCommand={viewCommand}
         />

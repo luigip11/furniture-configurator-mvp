@@ -89,7 +89,7 @@ export function ConfiguratorWorkspace({ products }: ConfiguratorWorkspaceProps) 
       </div>
 
       <div className="order-1 min-h-[420px] min-w-0 sm:min-h-[520px] lg:order-2 lg:h-full lg:min-h-0">
-        <ConfiguratorScene compactHint={catalogCollapsed} />
+        <ConfiguratorScene compactHint={catalogCollapsed} products={products} />
       </div>
 
       <div className="order-3 min-w-0 space-y-4 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-1">

@@ -40,6 +40,10 @@ type ConfiguratorStore = {
   setLocale: (locale: Locale) => void;
   setSceneMode: (sceneMode: SceneMode) => void;
   addProduct: (product: Product) => void;
+  addProductAtPosition: (
+    product: Product,
+    position: [number, number, number]
+  ) => void;
   selectItem: (itemId: string | null) => void;
   updateItem: (
     itemId: string,
@@ -100,22 +104,26 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
     const currentItems = get().items;
     get().commitHistory();
 
-    const item: ConfiguratorItem = {
-      id: crypto.randomUUID(),
-      productId: product.id,
-      nameIt: product.name_it,
-      nameEn: product.name_en,
-      code: product.code,
-      widthMm: product.width_mm,
-      heightMm: product.height_mm,
-      depthMm: product.depth_mm,
-      price: product.price,
-      modelUrl: product.model_url,
-      position: getNextPosition(currentItems, product.width_mm),
-      rotationY: 0,
-      variantKey: getSafeModuleVariant(product.code, DEFAULT_MODULE_VARIANT),
-      color: "#d8d3c7",
+    const item = createConfiguratorItem(
+      product,
+      getNextPosition(currentItems, product.width_mm)
+    );
+    const alignedItem: ConfiguratorItem = {
+      ...item,
+      position: getAlignedPositionForSceneMode(item, get().sceneMode),
     };
+
+    set({
+      items: [...currentItems, alignedItem],
+      selectedItemId: alignedItem.id,
+    });
+  },
+
+  addProductAtPosition: (product, position) => {
+    const currentItems = get().items;
+    get().commitHistory();
+
+    const item = createConfiguratorItem(product, snapPosition(position));
     const alignedItem: ConfiguratorItem = {
       ...item,
       position: getAlignedPositionForSceneMode(item, get().sceneMode),
@@ -324,5 +332,28 @@ function cloneSnapshot(
       position: [...item.position],
     })),
     selectedItemId: snapshot.selectedItemId,
+  };
+}
+
+// Crea un elemento scena a partire da un prodotto mantenendo coerenti variante e asset 3D.
+function createConfiguratorItem(
+  product: Product,
+  position: [number, number, number]
+): ConfiguratorItem {
+  return {
+    id: crypto.randomUUID(),
+    productId: product.id,
+    nameIt: product.name_it,
+    nameEn: product.name_en,
+    code: product.code,
+    widthMm: product.width_mm,
+    heightMm: product.height_mm,
+    depthMm: product.depth_mm,
+    price: product.price,
+    modelUrl: product.model_url,
+    position,
+    rotationY: 0,
+    variantKey: getSafeModuleVariant(product.code, DEFAULT_MODULE_VARIANT),
+    color: "#d8d3c7",
   };
 }

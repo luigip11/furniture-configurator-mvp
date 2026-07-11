@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Minus, Plus, RotateCw } from "lucide-react";
+import { ChevronDown, Minus, Plus, RotateCw } from "lucide-react";
 import {
   CONFIGURATOR_GRID_SIZE,
   useConfiguratorStore,
@@ -95,25 +95,31 @@ export function ProductPropertiesPanel() {
                 <span className="mb-1 block text-sm font-medium text-gray-700">
                   {t.variant}
                 </span>
-                <select
-                  id="module-variant"
-                  value={selectedItem.variantKey || DEFAULT_MODULE_VARIANT}
-                  onChange={(event) =>
-                    updateVariant(
-                      selectedItem.id,
-                      event.target.value as ModuleVariantKey
-                    )
-                  }
-                  className="mb-2 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-gray-500"
-                >
-                  {MODULE_VARIANT_OPTIONS.filter((variant) =>
-                    availableVariants.includes(variant.key)
-                  ).map((variant) => (
-                    <option key={variant.key} value={variant.key}>
-                      {locale === "it" ? variant.labelIt : variant.labelEn}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative mb-2">
+                  <select
+                    id="module-variant"
+                    value={selectedItem.variantKey || DEFAULT_MODULE_VARIANT}
+                    onChange={(event) =>
+                      updateVariant(
+                        selectedItem.id,
+                        event.target.value as ModuleVariantKey
+                      )
+                    }
+                    className="w-full appearance-none rounded-lg border bg-white py-2 pl-3 pr-12 text-sm outline-none focus:border-gray-500"
+                  >
+                    {MODULE_VARIANT_OPTIONS.filter((variant) =>
+                      availableVariants.includes(variant.key)
+                    ).map((variant) => (
+                      <option key={variant.key} value={variant.key}>
+                        {locale === "it" ? variant.labelIt : variant.labelEn}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500"
+                    aria-hidden="true"
+                  />
+                </div>
               </label>
             ) : (
               <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">

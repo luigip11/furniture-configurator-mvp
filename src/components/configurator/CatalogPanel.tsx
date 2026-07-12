@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronDown, Minus, Search, X } from "lucide-react";
+import { ChevronDown, GripVertical, Minus, Search, X } from "lucide-react";
 import { Product } from "@/types/configurator";
 import { useConfiguratorStore } from "@/store/configurator-store";
 import { dictionary } from "@/lib/i18n/dictionary";
@@ -209,17 +209,23 @@ function CatalogProductCard({
       }}
       className="cursor-grab rounded-lg border bg-white p-3 active:cursor-grabbing"
     >
-      <div className="mb-2">
-        <p className="text-sm font-medium">{name}</p>
-        {product.code ? (
-          <p className="truncate text-xs text-gray-500" title={product.code}>
-            {t.code}: {product.code}
+      <div className="mb-2 flex items-start gap-2">
+        <GripVertical
+          className="mt-0.5 h-5 w-5 shrink-0 text-gray-400"
+          aria-hidden="true"
+        />
+        <div className="min-w-0">
+          <p className="text-sm font-medium">{name}</p>
+          {product.code ? (
+            <p className="truncate text-xs text-gray-500" title={product.code}>
+              {t.code}: {product.code}
+            </p>
+          ) : null}
+          <p className="mt-1 text-xs text-gray-500">
+            L {product.width_mm} × A {product.height_mm} × P{" "}
+            {product.depth_mm} mm
           </p>
-        ) : null}
-        <p className="mt-1 text-xs text-gray-500">
-          L {product.width_mm} × A {product.height_mm} × P{" "}
-          {product.depth_mm} mm
-        </p>
+        </div>
       </div>
 
       <button

@@ -1,7 +1,9 @@
 import { create } from "zustand";
 import {
   ConfiguratorItem,
+  DEFAULT_DOOR_CONFIGURATION,
   DEFAULT_MODULE_VARIANT,
+  DoorConfiguration,
   Locale,
   ModuleVariantKey,
   Product,
@@ -11,6 +13,7 @@ import {
   getItemSceneWidth,
   getAlignedPositionForSceneMode,
   getNextPosition,
+  getNonOverlappingAlignedPosition,
   normalizeRotation,
   snapPosition,
 } from "@/store/configurator-calculations";
@@ -50,6 +53,10 @@ type ConfiguratorStore = {
     data: Partial<
       Pick<ConfiguratorItem, "widthMm" | "heightMm" | "depthMm" | "position">
     >
+  ) => void;
+  updateDoorConfiguration: (
+    itemId: string,
+    data: Partial<DoorConfiguration>
   ) => void;
   updateVariant: (itemId: string, variantKey: ModuleVariantKey) => void;
   updatePosition: (
@@ -91,12 +98,25 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
 
   setSceneMode: (sceneMode) => {
     get().commitHistory();
+    const alignedItems = get().items.reduce<ConfiguratorItem[]>(
+      (currentItems, item) => {
+        const alignedItem = {
+          ...item,
+          position: getNonOverlappingAlignedPosition(
+            item,
+            currentItems,
+            sceneMode
+          ),
+        };
+
+        return [...currentItems, alignedItem];
+      },
+      []
+    );
+
     set({
       sceneMode,
-      items: get().items.map((item) => ({
-        ...item,
-        position: getAlignedPositionForSceneMode(item, sceneMode),
-      })),
+      items: alignedItems,
     });
   },
 
@@ -110,7 +130,11 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
     );
     const alignedItem: ConfiguratorItem = {
       ...item,
-      position: getAlignedPositionForSceneMode(item, get().sceneMode),
+      position: getNonOverlappingAlignedPosition(
+        item,
+        currentItems,
+        get().sceneMode
+      ),
     };
 
     set({
@@ -126,7 +150,11 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
     const item = createConfiguratorItem(product, snapPosition(position));
     const alignedItem: ConfiguratorItem = {
       ...item,
-      position: getAlignedPositionForSceneMode(item, get().sceneMode),
+      position: getNonOverlappingAlignedPosition(
+        item,
+        currentItems,
+        get().sceneMode
+      ),
     };
 
     set({
@@ -151,12 +179,40 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
           position: data.position ? snapPosition(data.position) : item.position,
         };
 
-        return {
+        const alignedItem = {
           ...updatedItem,
           position: getAlignedPositionForSceneMode(
             updatedItem,
             get().sceneMode
           ),
+        };
+
+        return {
+          ...alignedItem,
+          position: getNonOverlappingAlignedPosition(
+            alignedItem,
+            get().items,
+            get().sceneMode
+          ),
+        };
+      }),
+    });
+  },
+
+  // Aggiorna solo le scelte anta dei moduli che possono avere una configurazione tecnica.
+  updateDoorConfiguration: (itemId, data) => {
+    get().commitHistory();
+    set({
+      items: get().items.map((item) => {
+        if (item.id !== itemId) return item;
+        if (!hasConfigurableModuleVariants(item.code)) return item;
+
+        return {
+          ...item,
+          doorConfiguration: {
+            ...(item.doorConfiguration || DEFAULT_DOOR_CONFIGURATION),
+            ...data,
+          },
         };
       }),
     });
@@ -185,13 +241,11 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
     set({
       items: get().items.map((item) =>
         item.id === itemId
-          ? {
-              ...item,
-              position: getAlignedPositionForSceneMode(
-                { ...item, position: snapPosition(position) },
-                get().sceneMode
-              ),
-            }
+          ? getItemWithResolvedPosition(
+              { ...item, position: snapPosition(position) },
+              get().items,
+              get().sceneMode
+            )
           : item
       ),
     });
@@ -214,7 +268,11 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
     };
     const alignedDuplicatedItem = {
       ...duplicatedItem,
-      position: getAlignedPositionForSceneMode(duplicatedItem, get().sceneMode),
+      position: getNonOverlappingAlignedPosition(
+        duplicatedItem,
+        get().items,
+        get().sceneMode
+      ),
     };
 
     set({
@@ -234,13 +292,19 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
           rotationY: normalizeRotation((item.rotationY || 0) + 90),
         };
 
-        return {
+        const alignedItem = {
           ...rotatedItem,
           position: getAlignedPositionForSceneMode(
             rotatedItem,
             get().sceneMode
           ),
         };
+
+        return getItemWithResolvedPosition(
+          alignedItem,
+          get().items,
+          get().sceneMode
+        );
       }),
     });
   },
@@ -253,19 +317,16 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
 
         const [x, y, z] = item.position;
 
-        return {
+        const movedItem = {
           ...item,
-          position:
-            axis === "x"
-              ? getAlignedPositionForSceneMode(
-                  { ...item, position: snapPosition([value, y, z]) },
-                  get().sceneMode
-                )
-              : getAlignedPositionForSceneMode(
-                  { ...item, position: snapPosition([x, y, value]) },
-                  get().sceneMode
-                ),
+          position: snapPosition(axis === "x" ? [value, y, z] : [x, y, value]),
         };
+
+        return getItemWithResolvedPosition(
+          movedItem,
+          get().items,
+          get().sceneMode
+        );
       }),
     });
   },
@@ -329,9 +390,29 @@ function cloneSnapshot(
   return {
     items: snapshot.items.map((item) => ({
       ...item,
+      doorConfiguration: item.doorConfiguration
+        ? { ...item.doorConfiguration }
+        : undefined,
       position: [...item.position],
     })),
     selectedItemId: snapshot.selectedItemId,
+  };
+}
+
+// Risolve la posizione finale applicando allineamento e regola anti-sovrapposizione.
+function getItemWithResolvedPosition(
+  item: ConfiguratorItem,
+  items: ConfiguratorItem[],
+  sceneMode: SceneMode
+) {
+  const alignedItem = {
+    ...item,
+    position: getAlignedPositionForSceneMode(item, sceneMode),
+  };
+
+  return {
+    ...alignedItem,
+    position: getNonOverlappingAlignedPosition(alignedItem, items, sceneMode),
   };
 }
 
@@ -354,6 +435,9 @@ function createConfiguratorItem(
     position,
     rotationY: 0,
     variantKey: getSafeModuleVariant(product.code, DEFAULT_MODULE_VARIANT),
+    doorConfiguration: hasConfigurableModuleVariants(product.code)
+      ? { ...DEFAULT_DOOR_CONFIGURATION }
+      : undefined,
     color: "#d8d3c7",
   };
 }

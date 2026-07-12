@@ -138,6 +138,7 @@ export function ProductModel({
           distanceFactor={9}
           position={[0, height + 0.34, 0]}
           style={{ pointerEvents: "none" }}
+          zIndexRange={[1, 0]}
         >
           <div className={labelClassName}>{name}</div>
         </Html>
@@ -450,6 +451,7 @@ function DimensionLine({
         distanceFactor={8}
         position={labelPosition}
         style={{ pointerEvents: "none" }}
+        zIndexRange={[1, 0]}
       >
         <span className="whitespace-nowrap px-1 text-[10px] font-semibold text-gray-900 drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)]">
           {label}

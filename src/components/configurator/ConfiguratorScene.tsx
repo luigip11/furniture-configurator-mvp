@@ -440,6 +440,7 @@ export function ConfiguratorScene({
       : selectedItem.nameEn || selectedItem.nameIt
     : "";
   const footprintSummary = useMemo(() => getFootprintSummary(items), [items]);
+  const showFootprintSummary = sceneMode !== "open" && footprintSummary.count > 0;
 
   const sendViewCommand = (type: ViewCommandType) => {
     viewCommandIdRef.current += 1;
@@ -571,7 +572,11 @@ export function ConfiguratorScene({
         </MapControlButton>
       </div>
 
-      <div className="absolute bottom-4 left-4 z-10 flex flex-col gap-2 rounded-lg bg-white/95 p-1 shadow-md ring-1 ring-black/10">
+      <div
+        className={`absolute left-4 z-20 flex flex-col gap-2 rounded-lg bg-white/95 p-1 shadow-md ring-1 ring-black/10 ${
+          showFootprintSummary ? "bottom-36 sm:bottom-4" : "bottom-4"
+        }`}
+      >
         <MapControlButton
           disabled={!canUndo}
           label={locale === "it" ? "Annulla" : "Undo"}
@@ -588,7 +593,7 @@ export function ConfiguratorScene({
         </MapControlButton>
       </div>
 
-      {sceneMode !== "open" && footprintSummary.count > 0 ? (
+      {showFootprintSummary ? (
         <div className="absolute bottom-4 left-4 z-10 w-[calc(100%-96px)] rounded-xl bg-white/92 p-3 shadow-md ring-1 ring-black/10 backdrop-blur-sm sm:left-1/2 sm:w-[min(520px,calc(100%-120px))] sm:-translate-x-1/2">
           <div className="mb-2 flex items-center justify-between gap-3">
             <p className="text-sm font-semibold text-gray-900">

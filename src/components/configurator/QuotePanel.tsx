@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
-import { Download } from "lucide-react";
+import { Download, Trash2 } from "lucide-react";
 import { useConfiguratorStore } from "@/store/configurator-store";
 import { dictionary } from "@/lib/i18n/dictionary";
 import { downloadTechnicalSheetPdf } from "@/lib/configurator/technical-sheet-pdf";
 import {
   DEFAULT_MODULE_VARIANT,
+  getDoorConfigurationSummary,
   getModuleVariantLabel,
 } from "@/types/configurator";
 import {
@@ -18,6 +19,7 @@ export function QuotePanel() {
   const locale = useConfiguratorStore((state) => state.locale);
   const items = useConfiguratorStore((state) => state.items);
   const clear = useConfiguratorStore((state) => state.clear);
+  const removeItem = useConfiguratorStore((state) => state.removeItem);
 
   const t = dictionary[locale];
 
@@ -57,11 +59,15 @@ export function QuotePanel() {
         <p className="text-sm text-gray-500">{t.noItems}</p>
       ) : (
         <div className="space-y-3">
-          {items.map((item) => {
+          {items.map((item, index) => {
             const name =
               locale === "it" ? item.nameIt : item.nameEn || item.nameIt;
             const variantLabel = getModuleVariantLabel(
               item.variantKey || DEFAULT_MODULE_VARIANT,
+              locale
+            );
+            const doorConfigurationSummary = getDoorConfigurationSummary(
+              item.doorConfiguration,
               locale
             );
             const bomCount = getModuleBillOfMaterials(
@@ -72,35 +78,70 @@ export function QuotePanel() {
             return (
               <div
                 key={item.id}
-                className="flex items-start justify-between gap-3 rounded-xl bg-gray-50 p-3"
+                className="relative flex items-start justify-between gap-3 rounded-xl bg-gray-50 p-3 pb-11"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium" title={name}>
-                    {name}
+                  <p
+                    className="truncate text-sm font-bold text-gray-950"
+                    title={name}
+                  >
+                    {index + 1}. {name}
                   </p>
                   {item.code ? (
-                    <p className="mt-1 truncate text-xs text-gray-500" title={item.code}>
-                      {t.code}: {item.code}
+                    <p className="mt-1 truncate text-xs" title={item.code}>
+                      <span className="font-semibold text-black">{t.code}: </span>
+                      <span className="text-gray-500">{item.code}</span>
                     </p>
                   ) : null}
                   {hasConfigurableModuleVariants(item.code) ? (
-                    <p className="mt-1 text-xs text-gray-500">
-                      {t.variant}: {variantLabel}
+                    <p className="mt-1 text-xs">
+                      <span className="font-semibold text-black">
+                        {t.variant}:{" "}
+                      </span>
+                      <span className="text-gray-500">{variantLabel}</span>
                     </p>
                   ) : null}
-                  <p className="mt-1 text-xs text-gray-500">
-                    {item.widthMm} × {item.heightMm} × {item.depthMm} mm
+                  {doorConfigurationSummary.length > 0 ? (
+                    <p className="mt-1 text-xs">
+                      <span className="font-semibold text-black">
+                        {t.doorConfiguration}:{" "}
+                      </span>
+                      <span className="text-gray-500">
+                        {doorConfigurationSummary.join(" · ")}
+                      </span>
+                    </p>
+                  ) : null}
+                  <p className="mt-1 text-xs">
+                    <span className="font-semibold text-black">
+                      {t.measurements}:{" "}
+                    </span>
+                    <span className="text-gray-500">
+                      L {item.widthMm} × A {item.heightMm} × P {item.depthMm} mm
+                    </span>
                   </p>
                   {bomCount > 0 ? (
-                    <p className="mt-1 text-xs text-black-500">
-                      {t.technicalComponents}: {bomCount}
+                    <p className="mt-1 text-xs">
+                      <span className="font-semibold text-black">
+                        {t.technicalComponents}:{" "}
+                      </span>
+                      <span className="text-gray-500">{bomCount}</span>
                     </p>
                   ) : null}
                 </div>
 
-                <p className="shrink-0 text-sm font-medium">
+                <p className="absolute bottom-3 left-3 text-sm font-medium text-gray-700">
                   {item.price ? `€ ${item.price}` : "-"}
                 </p>
+
+                <button
+                  type="button"
+                  aria-label={`${t.remove}: ${name}`}
+                  title={`${t.remove}: ${name}`}
+                  onClick={() => removeItem(item.id)}
+                  className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500"
+                >
+                  <Trash2 size={15} aria-hidden="true" />
+                </button>
               </div>
             );
           })}
@@ -116,7 +157,7 @@ export function QuotePanel() {
 
           <button
             type="button"
-            className="w-full rounded-lg bg-gray-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-gray-700"
+            className="w-full rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2"
           >
             {t.requestQuote}
           </button>

@@ -31,6 +31,25 @@ export type ModuleVariantKey =
   | "one_visible_one_internal"
   | "two_internal_sides";
 
+export type DoorCountKey = "one" | "two";
+
+export type DoorMountKey = "flush_floor" | "visible_plinth";
+
+export type DoorCoatingKey = "spv_basin" | "gs_no_basin";
+
+export type DoorMachiningKey =
+  | "smooth"
+  | "protruding_shutter"
+  | "inward_shutter"
+  | "h10_vents";
+
+export type DoorConfiguration = {
+  count: DoorCountKey;
+  mount: DoorMountKey;
+  coating: DoorCoatingKey;
+  machining: DoorMachiningKey;
+};
+
 export type SceneMode = "open" | "wall" | "front";
 
 export const SCENE_MODE_OPTIONS = [
@@ -56,6 +75,13 @@ export const SCENE_MODE_OPTIONS = [
 }[];
 
 export const DEFAULT_MODULE_VARIANT: ModuleVariantKey = "two_visible_sides";
+
+export const DEFAULT_DOOR_CONFIGURATION: DoorConfiguration = {
+  count: "one",
+  mount: "flush_floor",
+  coating: "spv_basin",
+  machining: "smooth",
+};
 
 export const MODULE_VARIANT_OPTIONS = [
   {
@@ -90,6 +116,111 @@ export function getModuleVariantLabel(
   return locale === "it" ? option.labelIt : option.labelEn;
 }
 
+export const DOOR_COUNT_OPTIONS = [
+  {
+    key: "one",
+    labelIt: "1 anta",
+    labelEn: "Single door",
+  },
+  {
+    key: "two",
+    labelIt: "2 ante",
+    labelEn: "Double doors",
+  },
+] satisfies {
+  key: DoorCountKey;
+  labelIt: string;
+  labelEn: string;
+}[];
+
+export const DOOR_MOUNT_OPTIONS = [
+  {
+    key: "flush_floor",
+    labelIt: "Anta a sfioro pavimento (SP)",
+    labelEn: "Flush-to-floor door panel (SP)",
+  },
+  {
+    key: "visible_plinth",
+    labelIt: "Zoccolo a vista (ZV)",
+    labelEn: "Visible plinth (ZV)",
+  },
+] satisfies {
+  key: DoorMountKey;
+  labelIt: string;
+  labelEn: string;
+}[];
+
+export const DOOR_COATING_OPTIONS = [
+  {
+    key: "spv_basin",
+    labelIt: "SPV - con vasca",
+    labelEn: "SPV - with basin",
+  },
+  {
+    key: "gs_no_basin",
+    labelIt: "GS - senza vasca",
+    labelEn: "GS - without basin",
+  },
+] satisfies {
+  key: DoorCoatingKey;
+  labelIt: string;
+  labelEn: string;
+}[];
+
+export const DOOR_MACHINING_OPTIONS = [
+  {
+    key: "smooth",
+    labelIt: "Liscia",
+    labelEn: "Smooth",
+  },
+  {
+    key: "protruding_shutter",
+    labelIt: "Persiana sporgente",
+    labelEn: "Protruding shutter",
+  },
+  {
+    key: "inward_shutter",
+    labelIt: "Persiana rivolta verso l'interno",
+    labelEn: "Shutter facing inward",
+  },
+  {
+    key: "h10_vents",
+    labelIt: "Asole H10 mm",
+    labelEn: "H10 mm vent slots",
+  },
+] satisfies {
+  key: DoorMachiningKey;
+  labelIt: string;
+  labelEn: string;
+}[];
+
+// Recupera la label localizzata da una lista di opzioni configurabili.
+function getOptionLabel<Key extends string>(
+  options: { key: Key; labelIt: string; labelEn: string }[],
+  key: Key,
+  locale: Locale
+) {
+  const option = options.find((currentOption) => currentOption.key === key);
+  const safeOption = option || options[0];
+
+  return locale === "it" ? safeOption.labelIt : safeOption.labelEn;
+}
+
+// Restituisce le quattro scelte anta in forma leggibile per riepilogo e PDF.
+export function getDoorConfigurationSummary(
+  configuration: DoorConfiguration | undefined,
+  locale: Locale
+) {
+  if (!configuration) return [];
+
+  return [
+    getOptionLabel(DOOR_COUNT_OPTIONS, configuration.count, locale),
+    getOptionLabel(DOOR_MOUNT_OPTIONS, configuration.mount, locale),
+    getOptionLabel(DOOR_COATING_OPTIONS, configuration.coating, locale),
+    getOptionLabel(DOOR_MACHINING_OPTIONS, configuration.machining, locale),
+  ];
+}
+
 export type ConfiguratorItem = {
   id: string;
   productId: string;
@@ -104,5 +235,6 @@ export type ConfiguratorItem = {
   position: [number, number, number];
   rotationY: number;
   variantKey: ModuleVariantKey;
+  doorConfiguration?: DoorConfiguration;
   color?: string;
 };

@@ -85,6 +85,60 @@ export function getAlignedPositionForSceneMode(
   return clampItemPositionToGridBounds(item, [x, y, z]);
 }
 
+// Allinea il modulo nelle viste tecniche e lo sposta al primo spazio laterale libero.
+export function getNonOverlappingAlignedPosition(
+  item: ConfiguratorItem,
+  items: ConfiguratorItem[],
+  sceneMode: SceneMode
+): [number, number, number] {
+  const alignedPosition = getAlignedPositionForSceneMode(item, sceneMode);
+
+  if (sceneMode === "open") return alignedPosition;
+
+  const footprint = getItemFootprintScene(item);
+  const halfWidth = footprint.width / 2;
+  const [, y, z] = alignedPosition;
+  const occupiedIntervals = items
+    .filter((currentItem) => currentItem.id !== item.id)
+    .map((currentItem) => {
+      const currentFootprint = getItemFootprintScene(currentItem);
+      const centerX = currentItem.position[0];
+
+      return {
+        left: centerX - currentFootprint.width / 2,
+        right: centerX + currentFootprint.width / 2,
+      };
+    })
+    .sort((a, b) => a.left - b.left);
+
+  const desiredX = snapToGrid(alignedPosition[0]);
+
+  if (!hasHorizontalOverlap(desiredX, halfWidth, occupiedIntervals)) {
+    return [desiredX, y, z];
+  }
+
+  const candidateX = occupiedIntervals
+    .flatMap((interval) => [
+      snapToGrid(interval.left - halfWidth),
+      snapToGrid(interval.right + halfWidth),
+    ])
+    .filter(
+      (candidate, index, candidates) =>
+        candidates.indexOf(candidate) === index &&
+        !hasHorizontalOverlap(candidate, halfWidth, occupiedIntervals)
+    )
+    .sort((a, b) => Math.abs(a - desiredX) - Math.abs(b - desiredX))[0];
+
+  if (candidateX !== undefined) return [candidateX, y, z];
+
+  const rightEdge = occupiedIntervals.reduce(
+    (maxRight, interval) => Math.max(maxRight, interval.right),
+    0
+  );
+
+  return [snapToGrid(rightEdge + halfWidth), y, z];
+}
+
 // Calcola la prossima posizione libera affiancando il nuovo modulo a quelli esistenti.
 export function getNextPosition(
   items: ConfiguratorItem[],
@@ -100,5 +154,20 @@ export function getNextPosition(
   return clampItemPositionToGridBounds(
     { widthMm, depthMm: 0, rotationY: 0 },
     [snapToGrid(rightEdge + width / 2), 0, 0]
+  );
+}
+
+// Verifica la collisione sull'asse orizzontale nelle viste a filo.
+function hasHorizontalOverlap(
+  centerX: number,
+  halfWidth: number,
+  intervals: { left: number; right: number }[]
+) {
+  const epsilon = 0.001;
+  const left = centerX - halfWidth;
+  const right = centerX + halfWidth;
+
+  return intervals.some(
+    (interval) => right > interval.left + epsilon && left < interval.right - epsilon
   );
 }

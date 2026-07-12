@@ -2,6 +2,7 @@ import {
   ConfiguratorItem,
   DEFAULT_MODULE_VARIANT,
   Locale,
+  getDoorConfigurationSummary,
   getModuleVariantLabel,
 } from "@/types/configurator";
 import {
@@ -137,6 +138,10 @@ function createPageStreams(
       item.variantKey || DEFAULT_MODULE_VARIANT,
       locale
     );
+    const doorConfigurationSummary = getDoorConfigurationSummary(
+      item.doorConfiguration,
+      locale
+    );
 
     addBoldText(
       getModuleTitle(
@@ -159,7 +164,19 @@ function createPageStreams(
       y,
       11
     );
-    y -= 24;
+    y -= 17.01;
+
+    if (doorConfigurationSummary.length > 0) {
+      addText(
+        `${t.pdfDoorConfiguration}: ${doorConfigurationSummary.join(" - ")}`,
+        PAGE_MARGIN_X + 14.17,
+        y,
+        9.5
+      );
+      y -= 20;
+    } else {
+      y -= 6.99;
+    }
 
     if (bomComponents.length > 0) {
       addBoldText(t.pdfTechnicalComponents, PAGE_MARGIN_X + 14.17, y, 10);

@@ -6,6 +6,7 @@ import {
   CONFIGURATOR_GRID_HALF_SIZE,
   getItemSceneWidth,
   getNextPosition,
+  getNonOverlappingAlignedPosition,
   normalizeRotation,
   snapPosition,
   snapToGrid,
@@ -52,6 +53,38 @@ test("getNextPosition parte dall'origine quando non ci sono moduli", () => {
 
 test("getNextPosition affianca il nuovo modulo al bordo destro", () => {
   assert.deepEqual(getNextPosition([baseItem], 700), [1, 0, 0]);
+});
+
+test("getNonOverlappingAlignedPosition evita sovrapposizioni in filo parete", () => {
+  const nextItem: ConfiguratorItem = {
+    ...baseItem,
+    id: "item-2",
+    position: [0, 0, 0],
+  };
+
+  assert.deepEqual(getNonOverlappingAlignedPosition(nextItem, [baseItem], "wall"), [
+    -1,
+    0,
+    0.25,
+  ]);
+});
+
+test("getNonOverlappingAlignedPosition mantiene i moduli accostati in sequenza", () => {
+  const secondItem: ConfiguratorItem = {
+    ...baseItem,
+    id: "item-2",
+    position: [1, 0, 0.25],
+  };
+  const thirdItem: ConfiguratorItem = {
+    ...baseItem,
+    id: "item-3",
+    position: [1, 0, 0],
+  };
+
+  assert.deepEqual(
+    getNonOverlappingAlignedPosition(thirdItem, [baseItem, secondItem], "front"),
+    [2, 0, -0.25]
+  );
 });
 
 test("clampItemPositionToGridBounds mantiene il modulo nel piano quadrettato", () => {

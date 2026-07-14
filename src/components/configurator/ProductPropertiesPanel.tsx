@@ -429,6 +429,12 @@ const DOOR_OPTION_IMAGES = {
     gs_no_basin: {
       src: `${DOOR_IMAGE_BASE}/door-coating-gs-no-basin.jpg`,
     },
+    sa_painting: {
+      src: `${DOOR_IMAGE_BASE}/door-coating-sa-painting.jpg`,
+    },
+    mgr_basin_handle: {
+      src: `${DOOR_IMAGE_BASE}/door-coating-mgr-basin-handle.jpg`,
+    },
   },
   machining: {
     smooth: null,

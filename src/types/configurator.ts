@@ -35,7 +35,11 @@ export type DoorCountKey = "one" | "two";
 
 export type DoorMountKey = "flush_floor" | "visible_plinth";
 
-export type DoorCoatingKey = "spv_basin" | "gs_no_basin";
+export type DoorCoatingKey =
+  | "spv_basin"
+  | "gs_no_basin"
+  | "sa_painting"
+  | "mgr_basin_handle";
 
 export type DoorMachiningKey =
   | "smooth"
@@ -160,6 +164,16 @@ export const DOOR_COATING_OPTIONS = [
     key: "gs_no_basin",
     labelIt: "GS - senza vasca",
     labelEn: "GS - without basin",
+  },
+  {
+    key: "sa_painting",
+    labelIt: "SA - predisposizione per essere tinteggiata",
+    labelEn: "SA - predisposition for painting",
+  },
+  {
+    key: "mgr_basin_handle",
+    labelIt: "MGR - predisposizione per rivestimento con vasca e maniglia gola",
+    labelEn: "MGR - predisposition for coating with basin and throat handle",
   },
 ] satisfies {
   key: DoorCoatingKey;

@@ -56,6 +56,16 @@ export type DoorConfiguration = {
 
 export type SceneMode = "open" | "wall" | "front";
 
+export type ConfiguratorSettings = {
+  allowFreeMovementInOpenScene: boolean;
+  showSceneDataOnStart: boolean;
+};
+
+export const DEFAULT_CONFIGURATOR_SETTINGS: ConfiguratorSettings = {
+  allowFreeMovementInOpenScene: false,
+  showSceneDataOnStart: false,
+};
+
 export const SCENE_MODE_OPTIONS = [
   {
     key: "open",

@@ -478,7 +478,7 @@ export function ProductAdmin({
 
       <form
         onSubmit={handleSubmit}
-        className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm lg:sticky lg:top-4 lg:self-start"
+        className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto"
       >
         <div className="-mx-4 -mt-4 mb-4 flex items-start justify-between gap-3 rounded-t-2xl border-b border-gray-200 bg-gray-50 px-4 py-4">
           <div>
@@ -797,18 +797,25 @@ function NumberField({
   required = false,
   step = "1",
 }: NumberFieldProps) {
+  const hintId = `number-field-${label.replace(/\W+/g, "-").toLowerCase()}`;
+
   return (
     <label className="block text-sm font-medium text-gray-700">
       {label}
       <input
-        type="number"
+        type="text"
+        inputMode="decimal"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         required={required}
-        min="0"
-        step={step}
+        pattern="[0-9]+([,.][0-9]+)?"
+        aria-describedby={hintId}
         className="mt-1 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-100"
       />
+      <span id={hintId} className="sr-only">
+        Inserisci un numero positivo, usando punto o virgola per i decimali.
+        Precisione suggerita: {step}.
+      </span>
     </label>
   );
 }

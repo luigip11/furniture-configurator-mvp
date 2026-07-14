@@ -4,10 +4,15 @@ import test from "node:test";
 import {
   clampItemPositionToGridBounds,
   CONFIGURATOR_GRID_HALF_SIZE,
+  getDockedCompositionItems,
+  getDockedItemsAfterMove,
   getItemSceneWidth,
   getNextPosition,
   getNonOverlappingAlignedPosition,
+  getWallUnitSceneBottom,
+  isWallUnitProduct,
   normalizeRotation,
+  shouldDockComposition,
   snapPosition,
   snapToGrid,
 } from "../src/store/configurator-calculations.ts";
@@ -53,6 +58,61 @@ test("getNextPosition parte dall'origine quando non ci sono moduli", () => {
 
 test("getNextPosition affianca il nuovo modulo al bordo destro", () => {
   assert.deepEqual(getNextPosition([baseItem], 700), [1, 0, 0]);
+});
+
+test("getDockedCompositionItems aggancia i moduli in una fila centrata", () => {
+  const secondItem: ConfiguratorItem = {
+    ...baseItem,
+    id: "item-2",
+    position: [3, 0, 2],
+  };
+
+  assert.deepEqual(
+    getDockedCompositionItems([baseItem, secondItem], "open").map(
+      (item) => item.position
+    ),
+    [
+      [-0.5, 0, 0],
+      [0.5, 0, 0],
+    ]
+  );
+});
+
+test("getDockedItemsAfterMove usa la traslazione per riordinare i moduli", () => {
+  const secondItem: ConfiguratorItem = {
+    ...baseItem,
+    id: "item-2",
+    position: [0.5, 0, 0],
+  };
+
+  assert.deepEqual(
+    getDockedItemsAfterMove([baseItem, secondItem], "item-2", [-2, 0, 0], "open")
+      .map((item) => item.id),
+    ["item-2", "item-1"]
+  );
+});
+
+test("isWallUnitProduct riconosce i pensili e la quota standard", () => {
+  assert.equal(
+    isWallUnitProduct({ code: "PENSILE-VERTICALE", name_it: "Pensile" }),
+    true
+  );
+  assert.equal(getWallUnitSceneBottom(), 2);
+});
+
+test("shouldDockComposition permette movimento libero solo in modalita aperta", () => {
+  assert.equal(
+    shouldDockComposition("open", { allowFreeMovementInOpenScene: true }),
+    false
+  );
+  assert.equal(
+    shouldDockComposition("wall", { allowFreeMovementInOpenScene: true }),
+    true
+  );
+  assert.equal(
+    shouldDockComposition("open", { allowFreeMovementInOpenScene: false }),
+    true
+  );
 });
 
 test("getNonOverlappingAlignedPosition evita sovrapposizioni in filo parete", () => {

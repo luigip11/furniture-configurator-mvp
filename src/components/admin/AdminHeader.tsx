@@ -13,7 +13,7 @@ const navItems = [
   { href: "/admin", icon: LayoutDashboard, label: "Panoramica" },
   { href: "/admin/prodotti", icon: Boxes, label: "Prodotti" },
   { href: "/admin/categorie", icon: FolderTree, label: "Categorie" },
-  { href: "/configuratore", icon: MonitorCog, label: "Configuratore" },
+  { href: "/admin/configuratore", icon: MonitorCog, label: "Configuratore" },
 ];
 
 export function AdminHeader({ title, description }: AdminHeaderProps) {

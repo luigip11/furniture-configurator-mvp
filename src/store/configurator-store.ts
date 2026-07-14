@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import {
   ConfiguratorItem,
+  ConfiguratorSettings,
+  DEFAULT_CONFIGURATOR_SETTINGS,
   DEFAULT_DOOR_CONFIGURATION,
   DEFAULT_MODULE_VARIANT,
   DoorConfiguration,
@@ -10,11 +12,14 @@ import {
   SceneMode,
 } from "@/types/configurator";
 import {
-  getItemSceneWidth,
-  getAlignedPositionForSceneMode,
+  clampItemPositionToGridBounds,
+  getDockedCompositionItems,
+  getDockedItemsAfterMove,
   getNextPosition,
-  getNonOverlappingAlignedPosition,
+  getWallUnitSceneBottom,
+  isWallUnitProduct,
   normalizeRotation,
+  shouldDockComposition,
   snapPosition,
 } from "@/store/configurator-calculations";
 import {
@@ -24,12 +29,16 @@ import {
 
 export { CONFIGURATOR_GRID_SIZE, snapToGrid } from "@/store/configurator-calculations";
 
+const CONFIGURATOR_SETTINGS_STORAGE_KEY = "furniture-configurator-settings";
+
 type ConfiguratorHistorySnapshot = {
   items: ConfiguratorItem[];
   selectedItemId: string | null;
 };
 
 type ConfiguratorStore = {
+  settings: ConfiguratorSettings;
+  settingsHydrated: boolean;
   locale: Locale;
   items: ConfiguratorItem[];
   past: ConfiguratorHistorySnapshot[];
@@ -40,6 +49,8 @@ type ConfiguratorStore = {
   canUndo: boolean;
 
   commitHistory: () => void;
+  hydrateSettings: () => void;
+  updateSettings: (settings: Partial<ConfiguratorSettings>) => void;
   setLocale: (locale: Locale) => void;
   setSceneMode: (sceneMode: SceneMode) => void;
   addProduct: (product: Product) => void;
@@ -74,6 +85,8 @@ type ConfiguratorStore = {
 };
 
 export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
+  settings: DEFAULT_CONFIGURATOR_SETTINGS,
+  settingsHydrated: false,
   locale: "it",
   items: [],
   past: [],
@@ -94,25 +107,42 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
     });
   },
 
+  hydrateSettings: () => {
+    if (get().settingsHydrated) return;
+
+    set({
+      settings: readStoredSettings(),
+      settingsHydrated: true,
+    });
+  },
+
+  updateSettings: (settings) => {
+    const nextSettings = {
+      ...get().settings,
+      ...settings,
+    };
+    const shouldRealign =
+      get().settings.allowFreeMovementInOpenScene &&
+      !nextSettings.allowFreeMovementInOpenScene;
+
+    writeStoredSettings(nextSettings);
+
+    set({
+      settings: nextSettings,
+      settingsHydrated: true,
+      items: shouldRealign
+        ? getDockedCompositionItems(get().items, get().sceneMode)
+        : get().items,
+    });
+  },
+
   setLocale: (locale) => set({ locale }),
 
   setSceneMode: (sceneMode) => {
     get().commitHistory();
-    const alignedItems = get().items.reduce<ConfiguratorItem[]>(
-      (currentItems, item) => {
-        const alignedItem = {
-          ...item,
-          position: getNonOverlappingAlignedPosition(
-            item,
-            currentItems,
-            sceneMode
-          ),
-        };
-
-        return [...currentItems, alignedItem];
-      },
-      []
-    );
+    const alignedItems = shouldDockComposition(sceneMode, get().settings)
+      ? getDockedCompositionItems(get().items, sceneMode)
+      : get().items;
 
     set({
       sceneMode,
@@ -128,18 +158,15 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
       product,
       getNextPosition(currentItems, product.width_mm)
     );
-    const alignedItem: ConfiguratorItem = {
-      ...item,
-      position: getNonOverlappingAlignedPosition(
-        item,
-        currentItems,
-        get().sceneMode
-      ),
-    };
+    const nextRawItems = [...currentItems, item];
+    const nextItems = shouldDockComposition(get().sceneMode, get().settings)
+      ? getDockedCompositionItems(nextRawItems, get().sceneMode)
+      : nextRawItems;
+    const alignedItem = nextItems.find((currentItem) => currentItem.id === item.id);
 
     set({
-      items: [...currentItems, alignedItem],
-      selectedItemId: alignedItem.id,
+      items: nextItems,
+      selectedItemId: alignedItem?.id || item.id,
     });
   },
 
@@ -148,18 +175,15 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
     get().commitHistory();
 
     const item = createConfiguratorItem(product, snapPosition(position));
-    const alignedItem: ConfiguratorItem = {
-      ...item,
-      position: getNonOverlappingAlignedPosition(
-        item,
-        currentItems,
-        get().sceneMode
-      ),
-    };
+    const nextRawItems = [...currentItems, item];
+    const nextItems = shouldDockComposition(get().sceneMode, get().settings)
+      ? getDockedCompositionItems(nextRawItems, get().sceneMode)
+      : nextRawItems;
+    const alignedItem = nextItems.find((currentItem) => currentItem.id === item.id);
 
     set({
-      items: [...currentItems, alignedItem],
-      selectedItemId: alignedItem.id,
+      items: nextItems,
+      selectedItemId: alignedItem?.id || item.id,
     });
   },
 
@@ -173,30 +197,18 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
       items: get().items.map((item) => {
         if (item.id !== itemId) return item;
 
-        const updatedItem = {
+        const updatedItem: ConfiguratorItem = {
           ...item,
           ...data,
           position: data.position ? snapPosition(data.position) : item.position,
         };
 
-        const alignedItem = {
-          ...updatedItem,
-          position: getAlignedPositionForSceneMode(
-            updatedItem,
-            get().sceneMode
-          ),
-        };
-
-        return {
-          ...alignedItem,
-          position: getNonOverlappingAlignedPosition(
-            alignedItem,
-            get().items,
-            get().sceneMode
-          ),
-        };
+        return updatedItem;
       }),
     });
+    if (shouldDockComposition(get().sceneMode, get().settings)) {
+      set({ items: getDockedCompositionItems(get().items, get().sceneMode) });
+    }
   },
 
   // Aggiorna solo le scelte anta dei moduli che possono avere una configurazione tecnica.
@@ -239,15 +251,24 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
     }
 
     set({
-      items: get().items.map((item) =>
-        item.id === itemId
-          ? getItemWithResolvedPosition(
-              { ...item, position: snapPosition(position) },
-              get().items,
-              get().sceneMode
-            )
-          : item
-      ),
+      items: shouldDockComposition(get().sceneMode, get().settings)
+        ? getDockedItemsAfterMove(
+            get().items,
+            itemId,
+            snapPosition(position),
+            get().sceneMode
+          )
+        : get().items.map((item) =>
+            item.id === itemId
+              ? {
+                  ...item,
+                  position: getFreeMovementPosition(
+                    item,
+                    snapPosition(position)
+                  ),
+                }
+              : item
+          ),
     });
   },
 
@@ -260,24 +281,23 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
     const duplicatedItem: ConfiguratorItem = {
       ...sourceItem,
       id: crypto.randomUUID(),
-      position: snapPosition([
-        sourceItem.position[0] + getItemSceneWidth(sourceItem),
+      position: [
+        getNextPosition(get().items, sourceItem.widthMm)[0],
         sourceItem.position[1],
         sourceItem.position[2],
-      ]),
+      ],
     };
-    const alignedDuplicatedItem = {
-      ...duplicatedItem,
-      position: getNonOverlappingAlignedPosition(
-        duplicatedItem,
-        get().items,
-        get().sceneMode
-      ),
-    };
+    const nextRawItems = [...get().items, duplicatedItem];
+    const nextItems = shouldDockComposition(get().sceneMode, get().settings)
+      ? getDockedCompositionItems(nextRawItems, get().sceneMode)
+      : nextRawItems;
+    const alignedDuplicatedItem = nextItems.find(
+      (item) => item.id === duplicatedItem.id
+    );
 
     set({
-      items: [...get().items, alignedDuplicatedItem],
-      selectedItemId: alignedDuplicatedItem.id,
+      items: nextItems,
+      selectedItemId: alignedDuplicatedItem?.id || duplicatedItem.id,
     });
   },
 
@@ -292,21 +312,12 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
           rotationY: normalizeRotation((item.rotationY || 0) + 90),
         };
 
-        const alignedItem = {
-          ...rotatedItem,
-          position: getAlignedPositionForSceneMode(
-            rotatedItem,
-            get().sceneMode
-          ),
-        };
-
-        return getItemWithResolvedPosition(
-          alignedItem,
-          get().items,
-          get().sceneMode
-        );
+        return rotatedItem;
       }),
     });
+    if (shouldDockComposition(get().sceneMode, get().settings)) {
+      set({ items: getDockedCompositionItems(get().items, get().sceneMode) });
+    }
   },
 
   moveItem: (itemId, axis, value) => {
@@ -322,13 +333,12 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
           position: snapPosition(axis === "x" ? [value, y, z] : [x, y, value]),
         };
 
-        return getItemWithResolvedPosition(
-          movedItem,
-          get().items,
-          get().sceneMode
-        );
+        return movedItem;
       }),
     });
+    if (shouldDockComposition(get().sceneMode, get().settings)) {
+      set({ items: getDockedCompositionItems(get().items, get().sceneMode) });
+    }
   },
 
   removeItem: (itemId) => {
@@ -337,7 +347,12 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
     const selectedItemId =
       get().selectedItemId === itemId ? null : get().selectedItemId;
 
-    set({ items, selectedItemId });
+    set({
+      items: shouldDockComposition(get().sceneMode, get().settings)
+        ? getDockedCompositionItems(items, get().sceneMode)
+        : items,
+      selectedItemId,
+    });
   },
 
   clear: () => {
@@ -399,28 +414,17 @@ function cloneSnapshot(
   };
 }
 
-// Risolve la posizione finale applicando allineamento e regola anti-sovrapposizione.
-function getItemWithResolvedPosition(
-  item: ConfiguratorItem,
-  items: ConfiguratorItem[],
-  sceneMode: SceneMode
-) {
-  const alignedItem = {
-    ...item,
-    position: getAlignedPositionForSceneMode(item, sceneMode),
-  };
-
-  return {
-    ...alignedItem,
-    position: getNonOverlappingAlignedPosition(alignedItem, items, sceneMode),
-  };
-}
-
 // Crea un elemento scena a partire da un prodotto mantenendo coerenti variante e asset 3D.
 function createConfiguratorItem(
   product: Product,
   position: [number, number, number]
 ): ConfiguratorItem {
+  const initialPosition = snapPosition([
+    position[0],
+    isWallUnitProduct(product) ? getWallUnitSceneBottom() : position[1],
+    position[2],
+  ]);
+
   return {
     id: crypto.randomUUID(),
     productId: product.id,
@@ -432,7 +436,7 @@ function createConfiguratorItem(
     depthMm: product.depth_mm,
     price: product.price,
     modelUrl: product.model_url,
-    position,
+    position: initialPosition,
     rotationY: 0,
     variantKey: getSafeModuleVariant(product.code, DEFAULT_MODULE_VARIANT),
     doorConfiguration: hasConfigurableModuleVariants(product.code)
@@ -440,4 +444,50 @@ function createConfiguratorItem(
       : undefined,
     color: "#d8d3c7",
   };
+}
+
+// Legge i setting salvati localmente mantenendo default robusti se il payload non e valido.
+function readStoredSettings(): ConfiguratorSettings {
+  if (typeof window === "undefined") return DEFAULT_CONFIGURATOR_SETTINGS;
+
+  try {
+    const storedSettings = window.localStorage.getItem(
+      CONFIGURATOR_SETTINGS_STORAGE_KEY
+    );
+    const parsedSettings = storedSettings
+      ? (JSON.parse(storedSettings) as Partial<ConfiguratorSettings>)
+      : null;
+
+    return {
+      ...DEFAULT_CONFIGURATOR_SETTINGS,
+      allowFreeMovementInOpenScene: Boolean(
+        parsedSettings?.allowFreeMovementInOpenScene
+      ),
+      showSceneDataOnStart: Boolean(parsedSettings?.showSceneDataOnStart),
+    };
+  } catch {
+    return DEFAULT_CONFIGURATOR_SETTINGS;
+  }
+}
+
+// Salva i setting lato browser senza impattare dati catalogo o composizione corrente.
+function writeStoredSettings(settings: ConfiguratorSettings) {
+  if (typeof window === "undefined") return;
+
+  window.localStorage.setItem(
+    CONFIGURATOR_SETTINGS_STORAGE_KEY,
+    JSON.stringify(settings)
+  );
+}
+
+// Applica il movimento libero solo al piano X/Z e preserva la quota verticale del modulo.
+function getFreeMovementPosition(
+  item: ConfiguratorItem,
+  position: [number, number, number]
+) {
+  return clampItemPositionToGridBounds(item, [
+    position[0],
+    item.position[1],
+    position[2],
+  ]);
 }

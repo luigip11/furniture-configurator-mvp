@@ -1,5 +1,12 @@
 import Link from "next/link";
-import { Boxes, Eye, FilePenLine, FolderTree, PackageCheck } from "lucide-react";
+import {
+  Boxes,
+  Eye,
+  FilePenLine,
+  FolderTree,
+  MonitorCog,
+  PackageCheck,
+} from "lucide-react";
 
 import { AdminHeader } from "@/components/admin/AdminHeader";
 import { getAdminCategories, getAdminProducts } from "@/lib/admin/data";
@@ -42,7 +49,7 @@ export default async function AdminPage() {
           />
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="grid gap-4 lg:grid-cols-3">
           <Link
             href="/admin/prodotti"
             className="group overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md"
@@ -92,6 +99,31 @@ export default async function AdminPage() {
                   label="Categorie disponibili"
                   value={categories.length}
                 />
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href="/admin/configuratore"
+            className="group overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md"
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-gray-100 bg-gray-50 px-5 py-4">
+              <div>
+                <p className="text-sm font-medium text-gray-500">Esperienza</p>
+                <h2 className="mt-1 text-xl font-semibold">Configuratore</h2>
+              </div>
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-700 transition group-hover:bg-blue-100">
+                <MonitorCog className="h-5 w-5" aria-hidden="true" />
+              </span>
+            </div>
+
+            <div className="p-5">
+              <p className="text-sm leading-6 text-gray-600">
+                Regola movimento dei moduli e visibilità iniziale dei dati in
+                scena.
+              </p>
+              <div className="mt-5">
+                <AdminMiniStat label="Settings" value={2} />
               </div>
             </div>
           </Link>

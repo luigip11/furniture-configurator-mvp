@@ -100,6 +100,41 @@ test("buildProductPayload trimma testo e converte numeri", () => {
   );
 });
 
+test("buildProductPayload accetta decimali con virgola nei campi prodotto", () => {
+  assert.deepEqual(
+    buildProductPayload({
+      category_id: "",
+      name_it: "Modulo decimale",
+      name_en: "",
+      code: "",
+      width_mm: "700,5",
+      height_mm: "2100",
+      depth_mm: "450",
+      thickness_mm: "19,5",
+      price: "199,90",
+      preview_image_url: "",
+      model_url: "",
+      technical_file_url: "",
+      is_published: true,
+    }),
+    {
+      category_id: null,
+      name_it: "Modulo decimale",
+      name_en: null,
+      code: null,
+      width_mm: 700.5,
+      height_mm: 2100,
+      depth_mm: 450,
+      thickness_mm: 19.5,
+      price: 199.9,
+      preview_image_url: null,
+      model_url: null,
+      technical_file_url: null,
+      is_published: true,
+    }
+  );
+});
+
 test("buildProductPayload blocca dimensioni obbligatorie non numeriche", () => {
   assert.throws(
     () =>

@@ -1,8 +1,13 @@
-import type { ConfiguratorItem, SceneMode } from "@/types/configurator";
+import type {
+  ConfiguratorItem,
+  ConfiguratorSettings,
+  SceneMode,
+} from "@/types/configurator";
 
 export const CONFIGURATOR_GRID_SIZE = 0.25;
 export const CONFIGURATOR_SCENE_SCALE = 700;
 export const CONFIGURATOR_GRID_HALF_SIZE = 7;
+export const WALL_UNIT_DEFAULT_BOTTOM_MM = 1400;
 
 // Arrotonda un valore alla griglia del configuratore mantenendo precisione stabile.
 export function snapToGrid(value: number) {
@@ -28,6 +33,19 @@ export function snapPosition(
 // Converte la larghezza millimetrica nella scala usata dalla scena 3D.
 export function getItemSceneWidth(item: Pick<ConfiguratorItem, "widthMm">) {
   return item.widthMm / CONFIGURATOR_SCENE_SCALE;
+}
+
+// Converte la quota inferiore standard dei pensili nella scala della scena.
+export function getWallUnitSceneBottom() {
+  return WALL_UNIT_DEFAULT_BOTTOM_MM / CONFIGURATOR_SCENE_SCALE;
+}
+
+// Decide se la scena deve mantenere i moduli agganciati o lasciare movimento libero.
+export function shouldDockComposition(
+  sceneMode: SceneMode,
+  settings: Pick<ConfiguratorSettings, "allowFreeMovementInOpenScene">
+) {
+  return sceneMode !== "open" || !settings.allowFreeMovementInOpenScene;
 }
 
 export function getItemFootprintMm(
@@ -83,6 +101,54 @@ export function getAlignedPositionForSceneMode(
     sceneMode === "wall" ? footprint.depth / 2 : -footprint.depth / 2;
 
   return clampItemPositionToGridBounds(item, [x, y, z]);
+}
+
+// Ricompone i moduli in una fila continua, rispettando l'ordine logico corrente.
+export function getDockedCompositionItems(
+  items: ConfiguratorItem[],
+  sceneMode: SceneMode
+) {
+  const sortedItems = [...items].sort((firstItem, secondItem) => {
+    const firstX = firstItem.position[0];
+    const secondX = secondItem.position[0];
+
+    if (firstX !== secondX) return firstX - secondX;
+
+    return items.indexOf(firstItem) - items.indexOf(secondItem);
+  });
+
+  return positionItemsFromLeft(sortedItems, sceneMode);
+}
+
+// Sposta un modulo nella sequenza in base alla X desiderata e richiude la composizione.
+export function getDockedItemsAfterMove(
+  items: ConfiguratorItem[],
+  itemId: string,
+  desiredPosition: [number, number, number],
+  sceneMode: SceneMode
+) {
+  const movingItem = items.find((item) => item.id === itemId);
+
+  if (!movingItem) return items;
+
+  const desiredX = snapToGrid(desiredPosition[0]);
+  const stableItems = items.filter((item) => item.id !== itemId);
+  const insertIndex = stableItems.filter((item) => item.position[0] < desiredX)
+    .length;
+  const nextItems = [
+    ...stableItems.slice(0, insertIndex),
+    {
+      ...movingItem,
+      position: [
+        desiredX,
+        movingItem.position[1],
+        desiredPosition[2],
+      ] satisfies [number, number, number],
+    },
+    ...stableItems.slice(insertIndex),
+  ];
+
+  return positionItemsFromLeft(nextItems, sceneMode);
 }
 
 // Allinea il modulo nelle viste tecniche e lo sposta al primo spazio laterale libero.
@@ -155,6 +221,67 @@ export function getNextPosition(
     { widthMm, depthMm: 0, rotationY: 0 },
     [snapToGrid(rightEdge + width / 2), 0, 0]
   );
+}
+
+// Stabilisce se un prodotto deve nascere alla quota pensile invece che a terra.
+export function isWallUnitProduct(product: {
+  code?: string | null;
+  name_it?: string | null;
+  name_en?: string | null;
+}) {
+  const text = [product.code, product.name_it, product.name_en]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return text.includes("pensile") || text.includes("wall unit");
+}
+
+// Allinea una sequenza partendo dal bordo sinistro e preservando quota e profondita dei moduli.
+function positionItemsFromLeft(items: ConfiguratorItem[], sceneMode: SceneMode) {
+  if (items.length === 0) return [];
+
+  const alignedItems = items.map((item) => ({
+    ...item,
+    position: getAlignedCompositionPosition(item, sceneMode),
+  }));
+  const totalWidth = alignedItems.reduce(
+    (sum, item) => sum + getItemFootprintScene(item).width,
+    0
+  );
+  let leftEdge = -totalWidth / 2;
+
+  return alignedItems.map((item) => {
+    const footprint = getItemFootprintScene(item);
+    const centerX = Number((leftEdge + footprint.width / 2).toFixed(4));
+    const maxX = Math.max(0, CONFIGURATOR_GRID_HALF_SIZE - footprint.width / 2);
+    const [, y, z] = item.position;
+
+    leftEdge += footprint.width;
+
+    return {
+      ...item,
+      position: [
+        Math.min(maxX, Math.max(-maxX, centerX)),
+        y,
+        z,
+      ] satisfies [number, number, number],
+    };
+  });
+}
+
+// Blocca la profondita della composizione e delega alle viste tecniche l'allineamento dedicato.
+function getAlignedCompositionPosition(
+  item: ConfiguratorItem,
+  sceneMode: SceneMode
+): [number, number, number] {
+  if (sceneMode !== "open") {
+    return getAlignedPositionForSceneMode(item, sceneMode);
+  }
+
+  const [x, y] = item.position;
+
+  return clampItemPositionToGridBounds(item, [x, y, 0]);
 }
 
 // Verifica la collisione sull'asse orizzontale nelle viste a filo.

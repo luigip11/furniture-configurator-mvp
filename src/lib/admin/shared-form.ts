@@ -6,7 +6,8 @@ export function optionalText(value: string) {
 
 // Converte un valore obbligatorio in numero, bloccando input non validi.
 export function requiredNumber(value: string, label: string) {
-  const numberValue = Number(value);
+  const normalizedValue = value.trim().replace(",", ".");
+  const numberValue = Number(normalizedValue);
 
   if (!Number.isFinite(numberValue)) {
     throw new Error(`${label} deve essere un numero valido.`);

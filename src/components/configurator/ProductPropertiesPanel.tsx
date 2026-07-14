@@ -33,6 +33,9 @@ export function ProductPropertiesPanel() {
   const locale = useConfiguratorStore((state) => state.locale);
   const items = useConfiguratorStore((state) => state.items);
   const sceneMode = useConfiguratorStore((state) => state.sceneMode);
+  const allowFreeMovementInOpenScene = useConfiguratorStore(
+    (state) => state.settings.allowFreeMovementInOpenScene
+  );
   const selectedItemId = useConfiguratorStore((state) => state.selectedItemId);
   const updateDoorConfiguration = useConfiguratorStore(
     (state) => state.updateDoorConfiguration
@@ -70,7 +73,8 @@ export function ProductPropertiesPanel() {
       ? selectedItem.nameIt
       : selectedItem.nameEn || selectedItem.nameIt;
   const positionStep = CONFIGURATOR_GRID_SIZE;
-  const zMovementDisabled = sceneMode !== "open";
+  const zMovementDisabled =
+    sceneMode !== "open" || !allowFreeMovementInOpenScene;
   const availableVariants = getAvailableModuleVariants(selectedItem.code);
   const variantConfigurable = hasConfigurableModuleVariants(selectedItem.code);
   const doorConfiguration =
@@ -241,6 +245,7 @@ export function ProductPropertiesPanel() {
                     label={t.positionZ}
                     value={Number(selectedItem.position[2].toFixed(2))}
                     step={positionStep}
+                    disabled={zMovementDisabled}
                     onChange={(value) => moveItem(selectedItem.id, "z", value)}
                   />
 
@@ -880,6 +885,7 @@ function CollapsiblePanelHeader({
 }
 
 type NumberFieldProps = {
+  disabled?: boolean;
   id: string;
   label: string;
   value: number;
@@ -888,6 +894,7 @@ type NumberFieldProps = {
 };
 
 function NumberField({
+  disabled = false,
   id,
   label,
   value,
@@ -904,8 +911,9 @@ function NumberField({
         type="number"
         value={value}
         step={step}
+        disabled={disabled}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="mb-2 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-500"
+        className="mb-2 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-500 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
       />
     </label>
   );

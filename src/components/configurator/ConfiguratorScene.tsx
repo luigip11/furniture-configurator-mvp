@@ -23,6 +23,7 @@ import {
 } from "@/store/configurator-store";
 import {
   CONFIGURATOR_SCENE_SCALE,
+  getItemFootprintScene,
   getItemFootprintMm,
 } from "@/store/configurator-calculations";
 import {
@@ -99,6 +100,7 @@ function SceneContent({
   const raycasterRef = useRef(new THREE.Raycaster());
   const verticalAxis = useMemo(() => new THREE.Vector3(0, 1, 0), []);
   const maxCameraDistance = useMemo(() => getMaxCameraDistance(items), [items]);
+  const sceneFocus = useMemo(() => getSceneFocus(items), [items]);
 
   const updateZoomOutLimit = useCallback(() => {
     const target = controlsRef.current?.target || new THREE.Vector3(0, 0, 0);
@@ -245,6 +247,31 @@ function SceneContent({
     controlsRef.current?.update();
     updateZoomOutLimit();
   }, [camera, maxCameraDistance, updateZoomOutLimit]);
+
+  useEffect(() => {
+    if (!sceneFocus) return;
+
+    const controlsTarget = controlsRef.current?.target;
+    const nextTarget = sceneFocus.center;
+
+    if (!controlsTarget) return;
+
+    const previousTarget = controlsTarget.clone();
+    const cameraOffset = camera.position.clone().sub(previousTarget);
+    const nextDistance = THREE.MathUtils.clamp(
+      Math.max(cameraOffset.length(), sceneFocus.radius * 2.1 + 2.4),
+      CAMERA_MIN_DISTANCE,
+      maxCameraDistance
+    );
+
+    cameraOffset.setLength(nextDistance);
+    controlsTarget.copy(nextTarget);
+    camera.position.copy(nextTarget).add(cameraOffset);
+    camera.lookAt(nextTarget);
+    camera.updateProjectionMatrix();
+    controlsRef.current?.update();
+    updateZoomOutLimit();
+  }, [camera, maxCameraDistance, sceneFocus, updateZoomOutLimit]);
 
   const handleDragStart = (
     item: ConfiguratorItem,
@@ -415,6 +442,13 @@ export function ConfiguratorScene({
   const locale = useConfiguratorStore((state) => state.locale);
   const items = useConfiguratorStore((state) => state.items);
   const sceneMode = useConfiguratorStore((state) => state.sceneMode);
+  const settingsHydrated = useConfiguratorStore(
+    (state) => state.settingsHydrated
+  );
+  const hydrateSettings = useConfiguratorStore((state) => state.hydrateSettings);
+  const showSceneDataOnStart = useConfiguratorStore(
+    (state) => state.settings.showSceneDataOnStart
+  );
   const selectedItemId = useConfiguratorStore((state) => state.selectedItemId);
   const setSceneMode = useConfiguratorStore((state) => state.setSceneMode);
   const selectItem = useConfiguratorStore((state) => state.selectItem);
@@ -423,7 +457,7 @@ export function ConfiguratorScene({
   const canUndo = useConfiguratorStore((state) => state.canUndo);
   const redo = useConfiguratorStore((state) => state.redo);
   const undo = useConfiguratorStore((state) => state.undo);
-  const [labelsVisible, setLabelsVisible] = useState(true);
+  const [labelsVisible, setLabelsVisible] = useState(showSceneDataOnStart);
   const [mobileHintVisible, setMobileHintVisible] = useState(false);
   const [viewCommand, setViewCommand] = useState<ViewCommand | null>(null);
   const [zoomOutDisabled, setZoomOutDisabled] = useState(false);
@@ -431,6 +465,7 @@ export function ConfiguratorScene({
     useState<CatalogDropRequest | null>(null);
   const viewCommandIdRef = useRef(0);
   const catalogDropIdRef = useRef(0);
+  const labelsTouchedRef = useRef(false);
 
   const t = dictionary[locale];
   const selectedItem = items.find((item) => item.id === selectedItemId);
@@ -441,6 +476,16 @@ export function ConfiguratorScene({
     : "";
   const footprintSummary = useMemo(() => getFootprintSummary(items), [items]);
   const showFootprintSummary = sceneMode !== "open" && footprintSummary.count > 0;
+
+  useEffect(() => {
+    hydrateSettings();
+  }, [hydrateSettings]);
+
+  useEffect(() => {
+    if (!settingsHydrated || labelsTouchedRef.current) return;
+
+    setLabelsVisible(showSceneDataOnStart);
+  }, [settingsHydrated, showSceneDataOnStart]);
 
   const sendViewCommand = (type: ViewCommandType) => {
     viewCommandIdRef.current += 1;
@@ -519,36 +564,37 @@ export function ConfiguratorScene({
         ))}
       </div>
 
-      {items.length > 0 ? (
-        <div className="absolute right-4 top-4 z-10 flex flex-col gap-2 sm:flex-row">
-          {selectedItem ? (
-            <button
-              type="button"
-              aria-label={`${t.remove}: ${selectedItemName}`}
-              title={t.removeSelectedItem}
-              onClick={() => removeItem(selectedItem.id)}
-              className="order-2 flex h-9 w-9 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-700 sm:order-1"
-            >
-              <Trash2 size={18} aria-hidden="true" />
-            </button>
-          ) : null}
-
+      <div className="absolute right-4 top-4 z-10 flex flex-col gap-2 sm:flex-row">
+        {selectedItem ? (
           <button
             type="button"
-            aria-pressed={labelsVisible}
-            aria-label={labelsVisible ? t.hideLabels : t.showLabels}
-            title={labelsVisible ? t.hideLabels : t.showLabels}
-            onClick={() => setLabelsVisible((visible) => !visible)}
-            className="order-1 flex h-9 w-9 items-center justify-center rounded-lg bg-white/90 text-gray-800 shadow-sm ring-1 ring-black/10 transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 sm:order-2"
+            aria-label={`${t.remove}: ${selectedItemName}`}
+            title={t.removeSelectedItem}
+            onClick={() => removeItem(selectedItem.id)}
+            className="order-2 flex h-9 w-9 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-700 sm:order-1"
           >
-            {labelsVisible ? (
-              <Eye size={18} aria-hidden="true" />
-            ) : (
-              <EyeOff size={18} aria-hidden="true" />
-            )}
+            <Trash2 size={18} aria-hidden="true" />
           </button>
-        </div>
-      ) : null}
+        ) : null}
+
+        <button
+          type="button"
+          aria-pressed={labelsVisible}
+          aria-label={labelsVisible ? t.hideLabels : t.showLabels}
+          title={labelsVisible ? t.hideLabels : t.showLabels}
+          onClick={() => {
+            labelsTouchedRef.current = true;
+            setLabelsVisible((visible) => !visible);
+          }}
+          className="order-1 flex h-9 w-9 items-center justify-center rounded-lg bg-white/90 text-gray-800 shadow-sm ring-1 ring-black/10 transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 sm:order-2"
+        >
+          {labelsVisible ? (
+            <Eye size={18} aria-hidden="true" />
+          ) : (
+            <EyeOff size={18} aria-hidden="true" />
+          )}
+        </button>
+      </div>
 
       <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-2 rounded-lg bg-white/95 p-1 shadow-md ring-1 ring-black/10">
         <MapControlButton
@@ -691,7 +737,9 @@ function getFootprintSummary(items: ConfiguratorItem[]): FootprintSummary {
     const centerZ = item.position[2] * CONFIGURATOR_SCENE_SCALE;
 
     return {
-      heightMm: item.heightMm,
+      heightMm: Math.round(
+        item.position[1] * CONFIGURATOR_SCENE_SCALE + item.heightMm
+      ),
       maxX: centerX + footprint.widthMm / 2,
       maxZ: centerZ + footprint.depthMm / 2,
       minX: centerX - footprint.widthMm / 2,
@@ -710,6 +758,46 @@ function getFootprintSummary(items: ConfiguratorItem[]): FootprintSummary {
       Math.max(...boxes.map((box) => box.maxX)) -
         Math.min(...boxes.map((box) => box.minX))
     ),
+  };
+}
+
+// Calcola il centro orbitale della composizione completa, includendo moduli pensili in quota.
+function getSceneFocus(items: ConfiguratorItem[]) {
+  if (items.length === 0) return null;
+
+  const boxes = items.map((item) => {
+    const footprint = getItemFootprintScene(item);
+    const centerX = item.position[0];
+    const centerY = item.position[1] + item.heightMm / CONFIGURATOR_SCENE_SCALE / 2;
+    const centerZ = item.position[2];
+    const halfHeight = item.heightMm / CONFIGURATOR_SCENE_SCALE / 2;
+
+    return {
+      maxX: centerX + footprint.width / 2,
+      maxY: centerY + halfHeight,
+      maxZ: centerZ + footprint.depth / 2,
+      minX: centerX - footprint.width / 2,
+      minY: centerY - halfHeight,
+      minZ: centerZ - footprint.depth / 2,
+    };
+  });
+  const minX = Math.min(...boxes.map((box) => box.minX));
+  const maxX = Math.max(...boxes.map((box) => box.maxX));
+  const minY = Math.min(...boxes.map((box) => box.minY));
+  const maxY = Math.max(...boxes.map((box) => box.maxY));
+  const minZ = Math.min(...boxes.map((box) => box.minZ));
+  const maxZ = Math.max(...boxes.map((box) => box.maxZ));
+  const width = maxX - minX;
+  const height = maxY - minY;
+  const depth = maxZ - minZ;
+
+  return {
+    center: new THREE.Vector3(
+      (minX + maxX) / 2,
+      Math.max(0.45, (minY + maxY) / 2),
+      (minZ + maxZ) / 2
+    ),
+    radius: Math.max(width, height, depth),
   };
 }
 

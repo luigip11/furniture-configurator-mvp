@@ -18,8 +18,10 @@ import {
 export function QuotePanel() {
   const locale = useConfiguratorStore((state) => state.locale);
   const items = useConfiguratorStore((state) => state.items);
+  const selectedItemId = useConfiguratorStore((state) => state.selectedItemId);
   const clear = useConfiguratorStore((state) => state.clear);
   const removeItem = useConfiguratorStore((state) => state.removeItem);
+  const selectItem = useConfiguratorStore((state) => state.selectItem);
 
   const t = dictionary[locale];
 
@@ -78,9 +80,17 @@ export function QuotePanel() {
             return (
               <div
                 key={item.id}
-                className="relative flex items-start justify-between gap-3 rounded-xl bg-gray-50 p-3 pb-11"
+                className={`relative flex items-start justify-between gap-3 rounded-xl p-3 pb-11 transition ${
+                  selectedItemId === item.id
+                    ? "bg-blue-50 ring-2 ring-blue-500"
+                    : "bg-gray-50 hover:bg-gray-100"
+                }`}
               >
-                <div className="min-w-0 flex-1">
+                <button
+                  type="button"
+                  onClick={() => selectItem(item.id)}
+                  className="min-w-0 flex-1 text-left focus:outline-none"
+                >
                   <p
                     className="truncate text-sm font-bold text-gray-950"
                     title={name}
@@ -127,7 +137,7 @@ export function QuotePanel() {
                       <span className="text-gray-500">{bomCount}</span>
                     </p>
                   ) : null}
-                </div>
+                </button>
 
                 <p className="absolute bottom-3 left-3 text-sm font-medium text-gray-700">
                   {item.price ? `€ ${item.price}` : "-"}
@@ -137,7 +147,10 @@ export function QuotePanel() {
                   type="button"
                   aria-label={`${t.remove}: ${name}`}
                   title={`${t.remove}: ${name}`}
-                  onClick={() => removeItem(item.id)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    removeItem(item.id);
+                  }}
                   className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500"
                 >
                   <Trash2 size={15} aria-hidden="true" />

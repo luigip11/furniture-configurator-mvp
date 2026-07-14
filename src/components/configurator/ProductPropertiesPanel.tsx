@@ -726,11 +726,14 @@ function DoorConfigurationSummary({
       </h3>
       <dl className="mt-4 space-y-3">
         {rows.map(([label, value]) => (
-          <div key={label} className="grid gap-1 sm:grid-cols-[180px_1fr]">
-            <dt className="text-xs font-semibold uppercase text-gray-500">
+          <div
+            key={label}
+            className="grid items-start gap-1 sm:grid-cols-[180px_1fr] sm:items-center"
+          >
+            <dt className="text-xs font-semibold uppercase leading-5 text-gray-500">
               {label}
             </dt>
-            <dd className="min-w-0 break-words text-sm font-medium text-gray-900">
+            <dd className="min-w-0 break-words text-sm font-medium leading-5 text-gray-900">
               {value}
             </dd>
           </div>

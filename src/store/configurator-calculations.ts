@@ -100,7 +100,15 @@ export function getAlignedPositionForSceneMode(
   const z =
     sceneMode === "wall" ? footprint.depth / 2 : -footprint.depth / 2;
 
-  return clampItemPositionToGridBounds(item, [x, y, z]);
+  const maxX = Math.max(0, CONFIGURATOR_GRID_HALF_SIZE - footprint.width / 2);
+
+  // Mantiene il bordo del modulo esattamente sulla guida: lo snap della Z
+  // sposterebbe l'elemento fuori filo quando la profondita non e multipla della griglia.
+  return [
+    snapToGrid(Math.min(maxX, Math.max(-maxX, x))),
+    y,
+    z,
+  ];
 }
 
 // Ricompone i moduli in una fila continua, rispettando l'ordine logico corrente.

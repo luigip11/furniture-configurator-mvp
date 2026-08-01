@@ -6,6 +6,7 @@ import {
   CONFIGURATOR_GRID_HALF_SIZE,
   getDockedCompositionItems,
   getDockedItemsAfterMove,
+  getAlignedPositionForSceneMode,
   getItemSceneWidth,
   getNextPosition,
   getNonOverlappingAlignedPosition,
@@ -125,7 +126,26 @@ test("getNonOverlappingAlignedPosition evita sovrapposizioni in filo parete", ()
   assert.deepEqual(getNonOverlappingAlignedPosition(nextItem, [baseItem], "wall"), [
     -1,
     0,
-    0.25,
+    0.32142857142857145,
+  ]);
+});
+
+test("getAlignedPositionForSceneMode mantiene il bordo a filo dopo una variazione di profondita", () => {
+  const updatedDepthItem: ConfiguratorItem = {
+    ...baseItem,
+    depthMm: 450,
+    position: [1.1, 0, 3],
+  };
+
+  assert.deepEqual(getAlignedPositionForSceneMode(updatedDepthItem, "wall"), [
+    1,
+    0,
+    0.32142857142857145,
+  ]);
+  assert.deepEqual(getAlignedPositionForSceneMode(updatedDepthItem, "front"), [
+    1,
+    0,
+    -0.32142857142857145,
   ]);
 });
 
@@ -143,7 +163,7 @@ test("getNonOverlappingAlignedPosition mantiene i moduli accostati in sequenza",
 
   assert.deepEqual(
     getNonOverlappingAlignedPosition(thirdItem, [baseItem, secondItem], "front"),
-    [2, 0, -0.25]
+    [2, 0, -0.32142857142857145]
   );
 });
 

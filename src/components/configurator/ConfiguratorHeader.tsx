@@ -3,13 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 
+import { LanguageSwitcher } from "@/components/shared/LanguageSwitcher";
 import { useConfiguratorStore } from "@/store/configurator-store";
 import { dictionary } from "@/lib/i18n/dictionary";
 
 // Gestisce la barra superiore del configuratore e la simulazione della vista cliente.
 export function ConfiguratorHeader() {
   const locale = useConfiguratorStore((state) => state.locale);
-  const setLocale = useConfiguratorStore((state) => state.setLocale);
   const [customerPreview, setCustomerPreview] = useState(false);
 
   const t = dictionary[locale];
@@ -47,33 +47,7 @@ export function ConfiguratorHeader() {
           </button>
         </div>
 
-        <div className="flex shrink-0 items-center gap-1 rounded-xl bg-gray-100 p-1 sm:gap-2">
-          <button
-            type="button"
-            onClick={() => setLocale("it")}
-            className={`rounded-lg px-2 py-1.5 text-xs font-medium transition sm:px-3 sm:text-sm ${
-              locale === "it" ? "bg-white shadow-sm" : "text-gray-500"
-            }`}
-          >
-            <span className="mr-1" aria-hidden="true">
-              🇮🇹
-            </span>
-            IT
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setLocale("en")}
-            className={`rounded-lg px-2 py-1.5 text-xs font-medium transition sm:px-3 sm:text-sm ${
-              locale === "en" ? "bg-white shadow-sm" : "text-gray-500"
-            }`}
-          >
-            <span className="mr-1" aria-hidden="true">
-              🇬🇧
-            </span>
-            EN
-          </button>
-        </div>
+        <LanguageSwitcher />
       </div>
     </header>
   );

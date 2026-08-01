@@ -17,6 +17,7 @@ import {
   DOOR_MACHINING_OPTIONS,
   DOOR_MOUNT_OPTIONS,
   DoorConfiguration,
+  Locale,
   MODULE_VARIANT_OPTIONS,
   ModuleVariantKey,
   getDoorConfigurationSummary,
@@ -135,7 +136,11 @@ export function ProductPropertiesPanel() {
                       availableVariants.includes(variant.key)
                     ).map((variant) => (
                       <option key={variant.key} value={variant.key}>
-                        {locale === "it" ? variant.labelIt : variant.labelEn}
+                        {locale === "it"
+                          ? variant.labelIt
+                          : locale === "fr"
+                            ? variant.labelFr
+                            : variant.labelEn}
                       </option>
                     ))}
                   </select>
@@ -403,7 +408,7 @@ type DoorConfigurationDialogProps = {
   itemCode?: string | null;
   itemId: string;
   itemName: string;
-  locale: "it" | "en";
+  locale: Locale;
   onChange: (data: Partial<DoorConfiguration>) => void;
   onClose: () => void;
 };
@@ -766,9 +771,9 @@ type DoorOptionImage = {
 
 type DoorOptionSectionProps<Key extends string> = {
   imageMap: Record<Key, DoorOptionImage>;
-  locale: "it" | "en";
+  locale: Locale;
   onSelect: (key: Key) => void;
-  options: { key: Key; labelIt: string; labelEn: string }[];
+  options: { key: Key; labelIt: string; labelEn: string; labelFr: string }[];
   selectedKey: Key;
 };
 
@@ -787,7 +792,13 @@ function DoorOptionSection<Key extends string>({
           <DoorOptionCard
             key={option.key}
             image={imageMap[option.key]}
-            label={locale === "it" ? option.labelIt : option.labelEn}
+            label={
+              locale === "it"
+                ? option.labelIt
+                : locale === "fr"
+                  ? option.labelFr
+                  : option.labelEn
+            }
             selected={option.key === selectedKey}
             onClick={() => onSelect(option.key)}
           />

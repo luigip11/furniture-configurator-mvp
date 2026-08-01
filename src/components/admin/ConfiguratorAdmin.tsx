@@ -5,9 +5,12 @@ import { useEffect } from "react";
 import { ArrowUpRight, Eye, Move, ShieldCheck } from "lucide-react";
 
 import { useConfiguratorStore } from "@/store/configurator-store";
+import { adminDictionary } from "@/lib/i18n/admin-dictionary";
 
 // Espone i setting operativi del configuratore senza mescolarli alla gestione catalogo.
 export function ConfiguratorAdmin() {
+  const locale = useConfiguratorStore((state) => state.locale);
+  const t = adminDictionary[locale];
   const settings = useConfiguratorStore((state) => state.settings);
   const hydrateSettings = useConfiguratorStore((state) => state.hydrateSettings);
   const updateSettings = useConfiguratorStore((state) => state.updateSettings);
@@ -23,24 +26,24 @@ export function ConfiguratorAdmin() {
           <div className="flex flex-col gap-3 border-b border-gray-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-medium text-gray-500">
-                Comportamento scena
+                {t.sceneBehavior}
               </p>
               <h2 className="mt-1 text-xl font-semibold">
-                Impostazioni configuratore
+                {t.configuratorSettings}
               </h2>
             </div>
             <span className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-700">
               <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-              Default controllato
+              {t.controlledDefault}
             </span>
           </div>
 
           <div className="mt-4 space-y-3">
             <SettingToggle
               checked={settings.allowFreeMovementInOpenScene}
-              description="Quando attivo, gli elementi possono essere trascinati liberamente sul piano X/Z solo nella vista Aperta. Nelle viste Filo parete e Filo fronte restano sempre vincolati."
+              description={t.freeMovementHint}
               icon={Move}
-              label="Movimento libero in modalità Aperta"
+              label={t.freeMovement}
               onChange={(checked) =>
                 updateSettings({ allowFreeMovementInOpenScene: checked })
               }
@@ -48,9 +51,9 @@ export function ConfiguratorAdmin() {
 
             <SettingToggle
               checked={settings.showSceneDataOnStart}
-              description="Quando attivo, all'apertura del configuratore l'occhio mostra subito nomi e quote degli elementi in scena. Di default resta spento per una vista più pulita."
+              description={t.showDataHint}
               icon={Eye}
-              label="Mostra dati elementi all'avvio"
+              label={t.showData}
               onChange={(checked) =>
                 updateSettings({ showSceneDataOnStart: checked })
               }
@@ -60,17 +63,16 @@ export function ConfiguratorAdmin() {
       </div>
 
       <aside className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm lg:self-start">
-        <p className="text-sm font-medium text-gray-500">Anteprima operativa</p>
-        <h2 className="mt-1 text-xl font-semibold">Configuratore</h2>
+        <p className="text-sm font-medium text-gray-500">{t.operationalPreview}</p>
+        <h2 className="mt-1 text-xl font-semibold">{t.configurator}</h2>
         <p className="mt-3 text-sm leading-6 text-gray-600">
-          Apri la scena cliente per testare subito le impostazioni salvate in
-          questa console.
+          {t.previewDescription}
         </p>
         <Link
           href="/configuratore"
           className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2"
         >
-          Vai al configuratore
+          {t.openConfigurator}
           <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
         </Link>
       </aside>

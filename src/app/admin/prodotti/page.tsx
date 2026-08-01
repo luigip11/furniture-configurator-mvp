@@ -12,10 +12,7 @@ export default async function AdminProductsPage() {
 
   return (
     <main className="min-h-screen bg-gray-100 text-gray-950">
-      <AdminHeader
-        title="Prodotti"
-        description="Crea, aggiorna, pubblica o rimuovi i moduli del catalogo."
-      />
+      <AdminHeader page="products" />
       <ProductAdmin initialProducts={products} categories={categories} />
     </main>
   );

@@ -30,6 +30,7 @@ import {
 export { CONFIGURATOR_GRID_SIZE, snapToGrid } from "@/store/configurator-calculations";
 
 const CONFIGURATOR_SETTINGS_STORAGE_KEY = "furniture-configurator-settings";
+const CONFIGURATOR_LOCALE_STORAGE_KEY = "furniture-configurator-locale";
 
 type ConfiguratorHistorySnapshot = {
   items: ConfiguratorItem[];
@@ -40,6 +41,7 @@ type ConfiguratorStore = {
   settings: ConfiguratorSettings;
   settingsHydrated: boolean;
   locale: Locale;
+  localeHydrated: boolean;
   items: ConfiguratorItem[];
   past: ConfiguratorHistorySnapshot[];
   future: ConfiguratorHistorySnapshot[];
@@ -49,6 +51,7 @@ type ConfiguratorStore = {
   canUndo: boolean;
 
   commitHistory: () => void;
+  hydrateLocale: () => void;
   hydrateSettings: () => void;
   updateSettings: (settings: Partial<ConfiguratorSettings>) => void;
   setLocale: (locale: Locale) => void;
@@ -88,6 +91,7 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
   settings: DEFAULT_CONFIGURATOR_SETTINGS,
   settingsHydrated: false,
   locale: "it",
+  localeHydrated: false,
   items: [],
   past: [],
   future: [],
@@ -116,6 +120,15 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
     });
   },
 
+  hydrateLocale: () => {
+    if (get().localeHydrated) return;
+
+    set({
+      locale: readStoredLocale(),
+      localeHydrated: true,
+    });
+  },
+
   updateSettings: (settings) => {
     const nextSettings = {
       ...get().settings,
@@ -136,7 +149,10 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
     });
   },
 
-  setLocale: (locale) => set({ locale }),
+  setLocale: (locale) => {
+    writeStoredLocale(locale);
+    set({ locale, localeHydrated: true });
+  },
 
   setSceneMode: (sceneMode) => {
     get().commitHistory();
@@ -470,6 +486,17 @@ function readStoredSettings(): ConfiguratorSettings {
   }
 }
 
+// Legge la lingua scelta dall'utente e usa l'italiano per valori assenti o non validi.
+function readStoredLocale(): Locale {
+  if (typeof window === "undefined") return "it";
+
+  const storedLocale = window.localStorage.getItem(CONFIGURATOR_LOCALE_STORAGE_KEY);
+
+  return storedLocale === "en" || storedLocale === "fr" || storedLocale === "it"
+    ? storedLocale
+    : "it";
+}
+
 // Salva i setting lato browser senza impattare dati catalogo o composizione corrente.
 function writeStoredSettings(settings: ConfiguratorSettings) {
   if (typeof window === "undefined") return;
@@ -478,6 +505,13 @@ function writeStoredSettings(settings: ConfiguratorSettings) {
     CONFIGURATOR_SETTINGS_STORAGE_KEY,
     JSON.stringify(settings)
   );
+}
+
+// Salva la lingua in modo che resti disponibile in tutte le sezioni dell'app.
+function writeStoredLocale(locale: Locale) {
+  if (typeof window === "undefined") return;
+
+  window.localStorage.setItem(CONFIGURATOR_LOCALE_STORAGE_KEY, locale);
 }
 
 // Applica il movimento libero solo al piano X/Z e preserva la quota verticale del modulo.

@@ -37,6 +37,8 @@ import {
   filterAndSortAdminProducts,
   type ProductSortOrder,
 } from "@/lib/admin/product-list";
+import { adminDictionary } from "@/lib/i18n/admin-dictionary";
+import { useConfiguratorStore } from "@/store/configurator-store";
 
 type ProductAdminProps = {
   initialProducts: Product[];
@@ -47,6 +49,8 @@ export function ProductAdmin({
   initialProducts,
   categories,
 }: ProductAdminProps) {
+  const locale = useConfiguratorStore((state) => state.locale);
+  const t = adminDictionary[locale];
   const router = useRouter();
   const [products, setProducts] = useState(initialProducts);
   const [form, setForm] = useState<ProductFormValues>(emptyProductForm);
@@ -134,7 +138,7 @@ export function ProductAdmin({
           | null;
 
         if (!response.ok || !result?.product) {
-          throw new Error(result?.message || "Impossibile salvare il prodotto.");
+          throw new Error(result?.message || t.saveProductError);
         }
 
         const savedProduct = result.product;
@@ -156,7 +160,7 @@ export function ProductAdmin({
           | null;
 
         if (!response.ok || !result?.product) {
-          throw new Error(result?.message || "Impossibile creare il prodotto.");
+          throw new Error(result?.message || t.createProductError);
         }
 
         setProducts((currentProducts) => [result.product as Product, ...currentProducts]);
@@ -168,7 +172,7 @@ export function ProductAdmin({
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Impossibile salvare il prodotto."
+          : t.saveProductError
       );
     } finally {
       setIsSaving(false);
@@ -192,7 +196,7 @@ export function ProductAdmin({
 
     if (!response.ok || !result?.product) {
       setErrorMessage(
-        result?.message || "Impossibile aggiornare la pubblicazione."
+        result?.message || t.publishError
       );
       return;
     }
@@ -232,7 +236,7 @@ export function ProductAdmin({
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Impossibile caricare il file su Supabase Storage."
+          : t.uploadError
       );
     } finally {
       setUploadingField(null);
@@ -241,7 +245,7 @@ export function ProductAdmin({
 
   async function deleteProduct(product: Product) {
     const confirmed = window.confirm(
-      `Eliminare il prodotto "${product.name_it}"?`
+      t.deleteProduct(product.name_it)
     );
 
     if (!confirmed) {
@@ -276,9 +280,9 @@ export function ProductAdmin({
       <div className="min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b border-gray-200 bg-gray-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-lg font-semibold">Lista prodotti</h2>
+            <h2 className="text-lg font-semibold">{t.productList}</h2>
             <p className="mt-1 text-sm text-gray-500">
-              {products.length} prodotti in catalogo
+              {t.productsInCatalog(products.length)}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
@@ -289,10 +293,10 @@ export function ProductAdmin({
                   setSortOrder(event.target.value as ProductSortOrder)
                 }
                 className="h-8 appearance-none rounded-full border border-gray-200 bg-white pl-3 pr-8 text-xs font-medium text-gray-700 shadow-sm outline-none transition hover:border-gray-300 focus:border-gray-400 focus:ring-2 focus:ring-gray-100"
-                aria-label="Ordina prodotti"
+                aria-label={t.sortProducts}
               >
-                <option value="newest">Più recenti</option>
-                <option value="oldest">Meno recenti</option>
+                <option value="newest">{t.newest}</option>
+                <option value="oldest">{t.oldest}</option>
               </select>
               <ChevronDown
                 className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400"
@@ -300,10 +304,10 @@ export function ProductAdmin({
               />
             </div>
             <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-emerald-700 ring-1 ring-emerald-100">
-              {products.filter((product) => product.is_published).length} online
+              {products.filter((product) => product.is_published).length} {t.online}
             </span>
             <span className="rounded-full bg-gray-100 px-3 py-1.5 text-gray-600 ring-1 ring-gray-200">
-              {products.filter((product) => !product.is_published).length} bozze
+              {products.filter((product) => !product.is_published).length} {t.drafts.toLowerCase()}
             </span>
           </div>
         </div>
@@ -319,15 +323,15 @@ export function ProductAdmin({
                 type="text"
                 value={searchText}
                 onChange={(event) => setSearchText(event.target.value)}
-                placeholder="Cerca prodotti"
+                placeholder={t.searchProducts}
                 className="h-10 w-full rounded-lg border border-gray-200 bg-white pl-9 pr-9 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-100"
                 autoFocus
               />
               {hasActiveSearch ? (
                 <button
                   type="button"
-                  aria-label="Cancella ricerca"
-                  title="Cancella ricerca"
+                  aria-label={t.clearSearch}
+                  title={t.clearSearch}
                   onClick={() => setSearchText("")}
                   className="absolute right-2 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
                 >
@@ -337,13 +341,13 @@ export function ProductAdmin({
             </div>
           ) : (
             <p className="min-w-0 flex-1 truncate text-sm font-medium text-gray-600">
-              Catalogo prodotti
+              {t.productCatalog}
             </p>
           )}
           <button
             type="button"
-            aria-label={searchExpanded ? "Chiudi ricerca" : "Cerca"}
-            title={searchExpanded ? "Chiudi ricerca" : "Cerca"}
+            aria-label={searchExpanded ? t.closeSearch : t.search}
+            title={searchExpanded ? t.closeSearch : t.search}
             onClick={toggleSearch}
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:border-gray-300 hover:bg-gray-50"
           >
@@ -352,10 +356,10 @@ export function ProductAdmin({
         </div>
 
         {products.length === 0 ? (
-          <p className="p-4 text-sm text-gray-500">Nessun prodotto presente.</p>
+          <p className="p-4 text-sm text-gray-500">{t.noProducts}</p>
         ) : visibleProducts.length === 0 ? (
           <p className="p-4 text-sm text-gray-500">
-            Nessun prodotto corrisponde alla ricerca.
+            {t.noSearchResults}
           </p>
         ) : (
           <div className="divide-y divide-gray-100">
@@ -394,30 +398,30 @@ export function ProductAdmin({
                                 : "bg-gray-400"
                             }`}
                           />
-                          {product.is_published ? "Pubblicato" : "Bozza"}
+                          {product.is_published ? t.publishedProduct : t.draft}
                         </span>
                       </div>
 
                       <div className="mt-3 grid gap-2 text-sm text-gray-600 sm:grid-cols-2">
-                        <ProductDetail label="Nome EN" value={product.name_en || "-"} />
-                        <ProductDetail label="Codice" value={product.code || "-"} />
-                        <ProductDetail label="Categoria" value={categoryName || "-"} />
+                        <ProductDetail label={t.nameEn} value={product.name_en || "-"} />
+                        <ProductDetail label={t.code} value={product.code || "-"} />
+                        <ProductDetail label={t.category} value={categoryName || "-"} />
                         <p>
                           <span className="font-medium text-gray-500">
-                            Dimensioni:
+                            {t.dimensions}:
                           </span>{" "}
                           {product.width_mm} x {product.height_mm} x{" "}
                           {product.depth_mm} mm
                         </p>
                         <p>
                           <span className="font-medium text-gray-500">
-                            Spessore:
+                            {t.thickness}:
                           </span>{" "}
                           {product.thickness_mm ?? "-"} mm
                         </p>
                         <p>
                           <span className="font-medium text-gray-500">
-                            Prezzo:
+                            {t.price}:
                           </span>{" "}
                           {product.price === null || product.price === undefined
                             ? "-"
@@ -427,13 +431,13 @@ export function ProductAdmin({
 
                       <div className="mt-3 flex flex-wrap gap-2 text-xs font-medium text-gray-500">
                         {product.preview_image_url ? (
-                          <ResourceChip icon={ImageIcon} label="Preview" />
+                          <ResourceChip icon={ImageIcon} label={t.preview} />
                         ) : null}
                         {product.model_url ? (
-                          <ResourceChip icon={Box} label="Modello 3D" />
+                          <ResourceChip icon={Box} label={t.model3d} />
                         ) : null}
                         {product.technical_file_url ? (
-                          <ResourceChip icon={FileBox} label="File tecnico" />
+                          <ResourceChip icon={FileBox} label={t.technicalFile} />
                         ) : null}
                       </div>
                     </div>
@@ -449,7 +453,7 @@ export function ProductAdmin({
                         ) : (
                           <Eye className="h-4 w-4" aria-hidden="true" />
                         )}
-                        {product.is_published ? "Nascondi" : "Pubblica"}
+                        {product.is_published ? t.hide : t.publish}
                       </button>
                       <button
                         type="button"
@@ -457,7 +461,7 @@ export function ProductAdmin({
                         className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition hover:border-gray-300 hover:bg-gray-50"
                       >
                         <Pencil className="h-4 w-4" aria-hidden="true" />
-                        Modifica
+                        {t.edit}
                       </button>
                       <button
                         type="button"
@@ -465,7 +469,7 @@ export function ProductAdmin({
                         className="inline-flex h-9 items-center gap-2 rounded-lg border border-red-200 px-3 text-sm font-medium text-red-700 transition hover:border-red-300 hover:bg-red-50"
                       >
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
-                        Elimina
+                        {t.delete}
                       </button>
                     </div>
                   </div>
@@ -483,7 +487,7 @@ export function ProductAdmin({
         <div className="-mx-4 -mt-4 mb-4 flex items-start justify-between gap-3 rounded-t-2xl border-b border-gray-200 bg-gray-50 px-4 py-4">
           <div>
             <h2 className="text-lg font-semibold">
-              {editingProduct ? "Modifica prodotto" : "Nuovo prodotto"}
+              {editingProduct ? t.editProduct : t.newProduct}
             </h2>
             {editingProduct ? (
               <p className="mt-1 text-sm text-gray-500">
@@ -498,7 +502,7 @@ export function ProductAdmin({
               className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
             >
               <X className="h-4 w-4" aria-hidden="true" />
-              Annulla
+              {t.cancel}
             </button>
           ) : null}
         </div>
@@ -511,7 +515,7 @@ export function ProductAdmin({
 
         <div className="space-y-4">
           <label className="block text-sm font-medium text-gray-700">
-            Categoria
+            {t.category}
             <div className="relative mt-1">
               <select
                 value={form.category_id}
@@ -520,7 +524,7 @@ export function ProductAdmin({
                 }
                 className="h-10 w-full appearance-none rounded-lg border border-gray-300 bg-white pl-3 pr-12 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-100"
               >
-                <option value="">Senza categoria</option>
+                <option value="">{t.noCategory}</option>
                 {categories.map((category) => (
                   <option key={category.id} value={category.id}>
                     {category.name}
@@ -536,52 +540,52 @@ export function ProductAdmin({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <TextField
-              label="Nome IT"
+              label={t.nameIt}
               value={form.name_it}
               onChange={(value) => updateForm("name_it", value)}
               required
             />
             <TextField
-              label="Nome EN"
+              label={t.nameEn}
               value={form.name_en}
               onChange={(value) => updateForm("name_en", value)}
             />
           </div>
 
           <TextField
-            label="Codice"
+            label={t.code}
             value={form.code}
             onChange={(value) => updateForm("code", value)}
           />
 
           <div className="grid gap-3 sm:grid-cols-2">
             <NumberField
-              label="Larghezza mm"
+              label={`${t.width} mm`}
               value={form.width_mm}
               onChange={(value) => updateForm("width_mm", value)}
               required
             />
             <NumberField
-              label="Altezza mm"
+              label={`${t.height} mm`}
               value={form.height_mm}
               onChange={(value) => updateForm("height_mm", value)}
               required
             />
             <NumberField
-              label="Profondità mm"
+              label={`${t.depth} mm`}
               value={form.depth_mm}
               onChange={(value) => updateForm("depth_mm", value)}
               required
             />
             <NumberField
-              label="Spessore mm"
+              label={`${t.thickness} mm`}
               value={form.thickness_mm}
               onChange={(value) => updateForm("thickness_mm", value)}
             />
           </div>
 
           <NumberField
-            label="Prezzo opzionale"
+            label={t.optionalPrice}
             value={form.price}
             onChange={(value) => updateForm("price", value)}
             step="0.01"
@@ -589,30 +593,30 @@ export function ProductAdmin({
 
           <AssetUrlField
             field="preview_image_url"
-            helperText="JPG, PNG o WebP."
+            helperText={t.previewHint}
             isUploading={uploadingField === "preview_image_url"}
-            label="URL immagine preview opzionale"
-            uploadLabel="Carica preview"
+            label={t.previewUrl}
+            uploadLabel={t.uploadPreview}
             value={form.preview_image_url}
             onChange={(value) => updateForm("preview_image_url", value)}
             onUpload={handleAssetUpload}
           />
           <AssetUrlField
             field="model_url"
-            helperText="GLB o GLTF. Questo file viene caricato dal configuratore 3D."
+            helperText={t.modelHint}
             isUploading={uploadingField === "model_url"}
-            label="URL modello 3D opzionale"
-            uploadLabel="Carica GLB"
+            label={t.modelUrl}
+            uploadLabel={t.uploadGlb}
             value={form.model_url}
             onChange={(value) => updateForm("model_url", value)}
             onUpload={handleAssetUpload}
           />
           <AssetUrlField
             field="technical_file_url"
-            helperText="RFA, PDF, DWG o ZIP. Gli RFA restano file sorgente tecnico, non vengono renderizzati in scena."
+            helperText={t.technicalHint}
             isUploading={uploadingField === "technical_file_url"}
-            label="URL file tecnico opzionale"
-            uploadLabel="Carica RFA"
+            label={t.technicalUrl}
+            uploadLabel={t.uploadRfa}
             value={form.technical_file_url}
             onChange={(value) => updateForm("technical_file_url", value)}
             onUpload={handleAssetUpload}
@@ -627,7 +631,7 @@ export function ProductAdmin({
               }
               className="h-4 w-4 rounded border-gray-300"
             />
-            Pubblicato nel configuratore
+            {t.publishedInConfigurator}
           </label>
 
           <button
@@ -642,7 +646,7 @@ export function ProductAdmin({
             ) : (
               <Plus className="h-4 w-4" aria-hidden="true" />
             )}
-            {editingProduct ? "Salva modifiche" : "Crea prodotto"}
+            {editingProduct ? t.saveChanges : t.createProduct}
           </button>
         </div>
       </form>
@@ -675,6 +679,8 @@ function AssetUrlField({
   onChange,
   onUpload,
 }: AssetUrlFieldProps) {
+  const locale = useConfiguratorStore((state) => state.locale);
+  const t = adminDictionary[locale];
   const inputId = `asset-upload-${field}`;
 
   return (
@@ -689,7 +695,7 @@ function AssetUrlField({
         {value ? (
           <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-100">
             <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-            Collegato
+            {t.connected}
           </span>
         ) : null}
       </div>
@@ -715,7 +721,7 @@ function AssetUrlField({
           ) : (
             <Upload className="h-4 w-4" aria-hidden="true" />
           )}
-          {isUploading ? "Caricamento" : uploadLabel}
+          {isUploading ? t.loading : uploadLabel}
         </label>
       </div>
 
@@ -797,6 +803,8 @@ function NumberField({
   required = false,
   step = "1",
 }: NumberFieldProps) {
+  const locale = useConfiguratorStore((state) => state.locale);
+  const t = adminDictionary[locale];
   const hintId = `number-field-${label.replace(/\W+/g, "-").toLowerCase()}`;
 
   return (
@@ -813,8 +821,7 @@ function NumberField({
         className="mt-1 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-100"
       />
       <span id={hintId} className="sr-only">
-        Inserisci un numero positivo, usando punto o virgola per i decimali.
-        Precisione suggerita: {step}.
+        {t.numberHint(step)}
       </span>
     </label>
   );

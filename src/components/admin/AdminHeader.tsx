@@ -4,20 +4,28 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Boxes, FolderTree, LayoutDashboard, MonitorCog } from "lucide-react";
 
+import { LanguageSwitcher } from "@/components/shared/LanguageSwitcher";
+import { adminDictionary } from "@/lib/i18n/admin-dictionary";
+import { useConfiguratorStore } from "@/store/configurator-store";
+
 type AdminHeaderProps = {
-  title: string;
-  description: string;
+  page: "overview" | "products" | "categories" | "configurator";
 };
 
 const navItems = [
-  { href: "/admin", icon: LayoutDashboard, label: "Panoramica" },
-  { href: "/admin/prodotti", icon: Boxes, label: "Prodotti" },
-  { href: "/admin/categorie", icon: FolderTree, label: "Categorie" },
-  { href: "/admin/configuratore", icon: MonitorCog, label: "Configuratore" },
-];
+  { href: "/admin", icon: LayoutDashboard, label: "overview" },
+  { href: "/admin/prodotti", icon: Boxes, label: "products" },
+  { href: "/admin/categorie", icon: FolderTree, label: "categories" },
+  { href: "/admin/configuratore", icon: MonitorCog, label: "configurator" },
+] as const;
 
-export function AdminHeader({ title, description }: AdminHeaderProps) {
+// Mostra navigazione e titolo admin nella lingua selezionata nell'app.
+export function AdminHeader({ page }: AdminHeaderProps) {
   const pathname = usePathname();
+  const locale = useConfiguratorStore((state) => state.locale);
+  const t = adminDictionary[locale];
+  const description = page === "overview" ? t.productManagement : page === "products" ? t.productManagement : page === "categories" ? t.categoryManagement : t.configuratorManagement;
+  const title = page === "overview" ? t.adminArea : t[page];
 
   return (
     <header className="border-b border-gray-200 bg-white/95 shadow-sm shadow-gray-200/50 backdrop-blur">
@@ -35,8 +43,11 @@ export function AdminHeader({ title, description }: AdminHeaderProps) {
             </p>
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-600">
-            Admin console
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-600">
+              {t.adminConsole}
+            </div>
+            <LanguageSwitcher />
           </div>
         </div>
 
@@ -59,7 +70,7 @@ export function AdminHeader({ title, description }: AdminHeaderProps) {
                 }`}
               >
                 <Icon className="h-4 w-4" aria-hidden="true" />
-                {item.label}
+                {t[item.label]}
               </Link>
             );
           })}

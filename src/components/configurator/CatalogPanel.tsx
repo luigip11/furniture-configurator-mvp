@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ChevronDown, GripVertical, Minus, Search, X } from "lucide-react";
-import { Product } from "@/types/configurator";
+import { Locale, Product } from "@/types/configurator";
 import { useConfiguratorStore } from "@/store/configurator-store";
 import { dictionary } from "@/lib/i18n/dictionary";
 
@@ -84,13 +84,31 @@ export function CatalogPanel({
                 value={searchText}
                 onChange={(event) => setSearchText(event.target.value)}
                 className="catalog-search-input h-9 w-full rounded-lg border border-gray-300 bg-white px-3 pr-9 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                placeholder={locale === "it" ? "Cerca prodotti" : "Search products"}
+                placeholder={
+                  locale === "it"
+                    ? "Cerca prodotti"
+                    : locale === "fr"
+                      ? "Rechercher des produits"
+                      : "Search products"
+                }
               />
               {searchText ? (
                 <button
                   type="button"
-                  aria-label={locale === "it" ? "Cancella ricerca" : "Clear search"}
-                  title={locale === "it" ? "Cancella ricerca" : "Clear search"}
+                  aria-label={
+                    locale === "it"
+                      ? "Cancella ricerca"
+                      : locale === "fr"
+                        ? "Effacer la recherche"
+                        : "Clear search"
+                  }
+                  title={
+                    locale === "it"
+                      ? "Cancella ricerca"
+                      : locale === "fr"
+                        ? "Effacer la recherche"
+                        : "Clear search"
+                  }
                   onClick={() => setSearchText("")}
                   className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-600"
                 >
@@ -105,8 +123,24 @@ export function CatalogPanel({
 
         <button
           type="button"
-          aria-label={searchExpanded ? t.catalog : locale === "it" ? "Cerca" : "Search"}
-          title={searchExpanded ? t.catalog : locale === "it" ? "Cerca" : "Search"}
+          aria-label={
+            searchExpanded
+              ? t.catalog
+              : locale === "it"
+                ? "Cerca"
+                : locale === "fr"
+                  ? "Rechercher"
+                  : "Search"
+          }
+          title={
+            searchExpanded
+              ? t.catalog
+              : locale === "it"
+                ? "Cerca"
+                : locale === "fr"
+                  ? "Rechercher"
+                  : "Search"
+          }
           onClick={toggleSearch}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-gray-50 text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-600"
         >
@@ -182,7 +216,7 @@ export function CatalogPanel({
 }
 
 type CatalogProductCardProps = {
-  locale: "it" | "en";
+  locale: Locale;
   onAdd: () => void;
   product: Product;
 };

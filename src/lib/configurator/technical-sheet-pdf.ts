@@ -41,7 +41,11 @@ export function downloadTechnicalSheetPdf(
 
   link.href = url;
   link.download = `FurnitureConfigurator_${
-    locale === "it" ? "Distinta" : "TechnicalSheet"
+    locale === "it"
+      ? "Distinta"
+      : locale === "fr"
+        ? "FicheTechnique"
+        : "TechnicalSheet"
   }_${Date.now()}.pdf`;
   document.body.appendChild(link);
   link.click();
@@ -106,7 +110,12 @@ function createPageStreams(
   currentPage.push("0.567 w");
   addBoldText(t.pdfTitle, PAGE_MARGIN_X, y, 22);
   y -= 22.68;
-  addText(`${locale === "it" ? "Data" : "Date"}: ${formatDate(date, locale)}`, PAGE_MARGIN_X, y, 10);
+  addText(
+    `${locale === "it" ? "Data" : "Date"}: ${formatDate(date, locale)}`,
+    PAGE_MARGIN_X,
+    y,
+    10
+  );
   y -= 11.34;
   addRule(y);
   y -= 36.85;
@@ -345,7 +354,9 @@ function toPdfSafeText(text: string) {
 }
 
 function formatDate(date: Date, locale: Locale) {
-  return date.toLocaleDateString(locale === "it" ? "it-IT" : "en-GB");
+  const localeCode = locale === "it" ? "it-IT" : locale === "fr" ? "fr-FR" : "en-GB";
+
+  return date.toLocaleDateString(localeCode);
 }
 
 function formatNumber(value: number) {

@@ -12,12 +12,16 @@ import {
 } from "@/lib/admin/category-form";
 import { supabase } from "@/lib/supabase/client";
 import type { Category } from "@/types/configurator";
+import { adminDictionary } from "@/lib/i18n/admin-dictionary";
+import { useConfiguratorStore } from "@/store/configurator-store";
 
 type CategoryAdminProps = {
   initialCategories: Category[];
 };
 
 export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
+  const locale = useConfiguratorStore((state) => state.locale);
+  const t = adminDictionary[locale];
   const router = useRouter();
   const [categories, setCategories] = useState(initialCategories);
   const [form, setForm] = useState<CategoryFormValues>(emptyCategoryForm);
@@ -99,7 +103,7 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Impossibile salvare la categoria."
+          : t.saveCategoryError
       );
     } finally {
       setIsSaving(false);
@@ -108,7 +112,7 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
 
   async function deleteCategory(category: Category) {
     const confirmed = window.confirm(
-      `Eliminare la categoria "${category.name}"?`
+      t.deleteCategory(category.name)
     );
 
     if (!confirmed) {
@@ -145,9 +149,9 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
       <div className="min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="flex items-center justify-between gap-4 border-b border-gray-200 bg-gray-50 px-4 py-4">
           <div>
-            <h2 className="text-lg font-semibold">Lista categorie</h2>
+            <h2 className="text-lg font-semibold">{t.categoryList}</h2>
             <p className="mt-1 text-sm text-gray-500">
-              {categories.length} categorie disponibili
+              {t.categoriesAvailable(categories.length)}
             </p>
           </div>
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-200 text-gray-800">
@@ -157,7 +161,7 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
 
         {categories.length === 0 ? (
           <p className="p-4 text-sm text-gray-500">
-            Nessuna categoria presente.
+            {t.noCategories}
           </p>
         ) : (
           <div className="divide-y divide-gray-100">
@@ -181,7 +185,7 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
                       </p>
                     ) : null}
                     <p className="mt-2 text-sm text-gray-500">
-                      Ordine: {category.sort_order ?? "-"}
+                      {t.order}: {category.sort_order ?? "-"}
                     </p>
                   </div>
 
@@ -192,7 +196,7 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
                       className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition hover:border-gray-300 hover:bg-gray-50"
                     >
                       <Pencil className="h-4 w-4" aria-hidden="true" />
-                      Modifica
+                      {t.edit}
                     </button>
                     <button
                       type="button"
@@ -200,7 +204,7 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
                       className="inline-flex h-9 items-center gap-2 rounded-lg border border-red-200 px-3 text-sm font-medium text-red-700 transition hover:border-red-300 hover:bg-red-50"
                     >
                       <Trash2 className="h-4 w-4" aria-hidden="true" />
-                      Elimina
+                      {t.delete}
                     </button>
                   </div>
                 </div>
@@ -217,7 +221,7 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
         <div className="-mx-4 -mt-4 mb-4 flex items-start justify-between gap-3 rounded-t-2xl border-b border-gray-200 bg-gray-50 px-4 py-4">
           <div>
             <h2 className="text-lg font-semibold">
-              {editingCategory ? "Modifica categoria" : "Nuova categoria"}
+              {editingCategory ? t.editCategory : t.newCategory}
             </h2>
             {editingCategory ? (
               <p className="mt-1 text-sm text-gray-500">
@@ -232,7 +236,7 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
               className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
             >
               <X className="h-4 w-4" aria-hidden="true" />
-              Annulla
+              {t.cancel}
             </button>
           ) : null}
         </div>
@@ -245,7 +249,7 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
 
         <div className="space-y-4">
           <TextField
-            label="Nome"
+            label={t.name}
             value={form.name}
             onChange={(value) => updateForm("name", value)}
             required
@@ -256,7 +260,7 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
             onChange={(value) => updateForm("slug", value)}
           />
           <label className="block text-sm font-medium text-gray-700">
-            Descrizione
+            {t.description}
             <textarea
               value={form.description}
               onChange={(event) => updateForm("description", event.target.value)}
@@ -265,7 +269,7 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
             />
           </label>
           <TextField
-            label="Ordine"
+            label={t.order}
             value={form.sort_order}
             onChange={(value) => updateForm("sort_order", value)}
             type="number"
@@ -283,7 +287,7 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
             ) : (
               <Plus className="h-4 w-4" aria-hidden="true" />
             )}
-            {editingCategory ? "Salva modifiche" : "Crea categoria"}
+            {editingCategory ? t.saveChanges : t.createCategory}
           </button>
         </div>
       </form>

@@ -559,7 +559,11 @@ export function ConfiguratorScene({
                 : "text-gray-600 hover:bg-gray-100"
             }`}
           >
-            {locale === "it" ? modeOption.labelIt : modeOption.labelEn}
+            {locale === "it"
+              ? modeOption.labelIt
+              : locale === "fr"
+                ? modeOption.labelFr
+                : modeOption.labelEn}
           </button>
         ))}
       </div>
@@ -625,14 +629,14 @@ export function ConfiguratorScene({
       >
         <MapControlButton
           disabled={!canUndo}
-          label={locale === "it" ? "Annulla" : "Undo"}
+          label={locale === "it" ? "Annulla" : locale === "fr" ? "Annuler" : "Undo"}
           onClick={undo}
         >
           <Undo2 size={18} aria-hidden="true" />
         </MapControlButton>
         <MapControlButton
           disabled={!canRedo}
-          label={locale === "it" ? "Ripristina" : "Redo"}
+          label={locale === "it" ? "Ripristina" : locale === "fr" ? "Rétablir" : "Redo"}
           onClick={redo}
         >
           <Redo2 size={18} aria-hidden="true" />

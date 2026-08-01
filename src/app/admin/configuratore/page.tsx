@@ -7,10 +7,7 @@ export const dynamic = "force-dynamic";
 export default function AdminConfiguratorPage() {
   return (
     <main className="min-h-screen bg-gray-100 text-gray-950">
-      <AdminHeader
-        title="Configuratore"
-        description="Gestisci i comportamenti della scena e apri rapidamente il configuratore cliente."
-      />
+      <AdminHeader page="configurator" />
       <ConfiguratorAdmin />
     </main>
   );

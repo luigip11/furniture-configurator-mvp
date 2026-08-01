@@ -9,10 +9,7 @@ export default async function AdminCategoriesPage() {
 
   return (
     <main className="min-h-screen bg-gray-100 text-gray-950">
-      <AdminHeader
-        title="Categorie"
-        description="Organizza le famiglie prodotto usate dal catalogo."
-      />
+      <AdminHeader page="categories" />
       <CategoryAdmin initialCategories={categories} />
     </main>
   );

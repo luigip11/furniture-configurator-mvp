@@ -22,3 +22,13 @@ test("getProportionalModelScale usa misure sicure per GLB non validi", () => {
     1
   );
 });
+
+test("getProportionalModelScale non genera scale non finite con dati corrotti", () => {
+  assert.equal(
+    getProportionalModelScale(
+      { width: Number.NaN, height: Number.POSITIVE_INFINITY, depth: -3 },
+      { width: Number.NaN, height: 0, depth: Number.NEGATIVE_INFINITY }
+    ),
+    1
+  );
+});

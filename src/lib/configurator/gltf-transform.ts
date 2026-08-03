@@ -9,13 +9,21 @@ export function getProportionalModelScale(
   source: ModelDimensions,
   target: ModelDimensions
 ) {
-  const sourceWidth = source.width > 0 ? source.width : 1;
-  const sourceHeight = source.height > 0 ? source.height : 1;
-  const sourceDepth = source.depth > 0 ? source.depth : 1;
+  const sourceWidth = getSafeDimension(source.width);
+  const sourceHeight = getSafeDimension(source.height);
+  const sourceDepth = getSafeDimension(source.depth);
+  const targetWidth = getSafeDimension(target.width);
+  const targetHeight = getSafeDimension(target.height);
+  const targetDepth = getSafeDimension(target.depth);
 
   return Math.min(
-    target.width / sourceWidth,
-    target.height / sourceHeight,
-    target.depth / sourceDepth
+    targetWidth / sourceWidth,
+    targetHeight / sourceHeight,
+    targetDepth / sourceDepth
   );
+}
+
+// Evita scale non finite o nulle quando un asset o un prodotto contiene dati incompleti.
+function getSafeDimension(value: number) {
+  return Number.isFinite(value) && value > 0 ? value : 1;
 }

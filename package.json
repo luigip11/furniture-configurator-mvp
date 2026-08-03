@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node --experimental-strip-types --test tests/**/*.test.ts",
+    "test:python": "python3 -m unittest discover -s tests -p '*_test.py'",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

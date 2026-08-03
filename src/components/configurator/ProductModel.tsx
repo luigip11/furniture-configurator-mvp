@@ -10,6 +10,7 @@ import {
 import { Edges, Html, Line, useGLTF } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
+import { getProportionalModelScale } from "@/lib/configurator/gltf-transform";
 import { useConfiguratorStore } from "@/store/configurator-store";
 import {
   ConfiguratorItem,
@@ -222,11 +223,11 @@ function GltfProductBody({ item, modelUrl }: GltfProductBodyProps) {
       size.y || 1,
       size.z || 1
     );
-    const scale = new THREE.Vector3(
-      targetSize.x / safeSize.x,
-      targetSize.y / safeSize.y,
-      targetSize.z / safeSize.z
+    const uniformScale = getProportionalModelScale(
+      { width: safeSize.x, height: safeSize.y, depth: safeSize.z },
+      { width: targetSize.x, height: targetSize.y, depth: targetSize.z }
     );
+    const scale = new THREE.Vector3(uniformScale, uniformScale, uniformScale);
     const position = new THREE.Vector3(
       -center.x * scale.x,
       -box.min.y * scale.y,

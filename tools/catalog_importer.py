@@ -98,6 +98,20 @@ FAMILY_RULES = [
         "COLONNA CON",
     ),
     (
+        "colonna-libera-alto",
+        ["colonna libera alto", "colonna libera in alto", "colonna libera sopra"],
+        "colonne",
+        Dimensions(700, 2282, 665),
+        "COLONNA CON",
+    ),
+    (
+        "colonna-libera-basso",
+        ["colonna libera basso", "colonna libera in basso", "colonna libera sotto"],
+        "colonne",
+        Dimensions(700, 2282, 665),
+        "COLONNA CON",
+    ),
+    (
         "contenitore-impianti",
         ["contenitore impianti"],
         "contenitori-impianti",

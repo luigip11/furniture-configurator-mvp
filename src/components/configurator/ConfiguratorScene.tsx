@@ -35,6 +35,7 @@ import {
   SceneMode,
 } from "@/types/configurator";
 import { dictionary } from "@/lib/i18n/dictionary";
+import { hasSceneCompositionChanged } from "@/lib/configurator/camera-focus";
 
 type DragState = {
   itemId: string;
@@ -93,6 +94,7 @@ function SceneContent({
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const dragRef = useRef<DragRefState | null>(null);
   const lastViewCommandIdRef = useRef(0);
+  const previousSceneItemIdsRef = useRef<string[]>([]);
   const { camera, gl } = useThree();
   const groundPlane = useMemo(
     () => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
@@ -263,6 +265,18 @@ function SceneContent({
 
     if (!controlsTarget) return;
 
+    const currentItemIds = items.map((item) => item.id);
+    const shouldFrameComposition = hasSceneCompositionChanged(
+      previousSceneItemIdsRef.current,
+      currentItemIds
+    );
+    previousSceneItemIdsRef.current = currentItemIds;
+
+    if (!shouldFrameComposition) {
+      updateZoomOutLimit();
+      return;
+    }
+
     const previousTarget = controlsTarget.clone();
     const cameraOffset = camera.position.clone().sub(previousTarget);
     const nextDistance = THREE.MathUtils.clamp(
@@ -278,7 +292,7 @@ function SceneContent({
     camera.updateProjectionMatrix();
     controlsRef.current?.update();
     updateZoomOutLimit();
-  }, [camera, maxCameraDistance, sceneFocus, updateZoomOutLimit]);
+  }, [camera, items, maxCameraDistance, sceneFocus, updateZoomOutLimit]);
 
   const handleDragStart = (
     item: ConfiguratorItem,

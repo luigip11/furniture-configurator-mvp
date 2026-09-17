@@ -9,6 +9,7 @@ import {
   Locale,
   ModuleVariantKey,
   Product,
+  ProductVariantProducts,
   SceneMode,
 } from "@/types/configurator";
 import {
@@ -26,6 +27,11 @@ import {
   getSafeModuleVariant,
   hasConfigurableModuleVariants,
 } from "@/lib/configurator/module-technical-catalog";
+import {
+  getProductForVariant,
+  getProductVariantKeys,
+  getSafeProductVariant,
+} from "@/lib/configurator/product-variants";
 
 export { CONFIGURATOR_GRID_SIZE, snapToGrid } from "@/store/configurator-calculations";
 
@@ -56,10 +62,11 @@ type ConfiguratorStore = {
   updateSettings: (settings: Partial<ConfiguratorSettings>) => void;
   setLocale: (locale: Locale) => void;
   setSceneMode: (sceneMode: SceneMode) => void;
-  addProduct: (product: Product) => void;
+  addProduct: (product: Product, variantProducts?: ProductVariantProducts) => void;
   addProductAtPosition: (
     product: Product,
-    position: [number, number, number]
+    position: [number, number, number],
+    variantProducts?: ProductVariantProducts
   ) => void;
   selectItem: (itemId: string | null) => void;
   updateItem: (
@@ -166,13 +173,14 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
     });
   },
 
-  addProduct: (product) => {
+  addProduct: (product, variantProducts) => {
     const currentItems = get().items;
     get().commitHistory();
 
     const item = createConfiguratorItem(
       product,
-      getNextPosition(currentItems, product.width_mm)
+      getNextPosition(currentItems, product.width_mm),
+      variantProducts
     );
     const nextRawItems = [...currentItems, item];
     const nextItems = shouldDockComposition(get().sceneMode, get().settings)
@@ -186,11 +194,11 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
     });
   },
 
-  addProductAtPosition: (product, position) => {
+  addProductAtPosition: (product, position, variantProducts) => {
     const currentItems = get().items;
     get().commitHistory();
 
-    const item = createConfiguratorItem(product, snapPosition(position));
+    const item = createConfiguratorItem(product, snapPosition(position), variantProducts);
     const nextRawItems = [...currentItems, item];
     const nextItems = shouldDockComposition(get().sceneMode, get().settings)
       ? getDockedCompositionItems(nextRawItems, get().sceneMode)
@@ -233,7 +241,12 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
     set({
       items: get().items.map((item) => {
         if (item.id !== itemId) return item;
-        if (!hasConfigurableModuleVariants(item.code)) return item;
+        if (
+          !hasConfigurableModuleVariants(item.code) &&
+          getProductVariantKeys(item.variantProducts).length <= 1
+        ) {
+          return item;
+        }
 
         return {
           ...item,
@@ -251,6 +264,19 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
     set({
       items: get().items.map((item) => {
         if (item.id !== itemId) return item;
+        const familyVariant = getSafeProductVariant(item.variantProducts, variantKey);
+        const variantProduct = getProductForVariant(
+          item.variantProducts,
+          variantKey
+        );
+
+        if (familyVariant && variantProduct) {
+          return createItemFromVariantProduct(
+            item,
+            variantProduct,
+            familyVariant
+          );
+        }
         if (!hasConfigurableModuleVariants(item.code)) return item;
 
         return {
@@ -425,6 +451,7 @@ function cloneSnapshot(
         ? { ...item.doorConfiguration }
         : undefined,
       position: [...item.position],
+      variantProducts: item.variantProducts ? { ...item.variantProducts } : undefined,
     })),
     selectedItemId: snapshot.selectedItemId,
   };
@@ -433,7 +460,8 @@ function cloneSnapshot(
 // Crea un elemento scena a partire da un prodotto mantenendo coerenti variante e asset 3D.
 function createConfiguratorItem(
   product: Product,
-  position: [number, number, number]
+  position: [number, number, number],
+  variantProducts?: ProductVariantProducts
 ): ConfiguratorItem {
   const initialPosition = snapPosition([
     position[0],
@@ -454,11 +482,38 @@ function createConfiguratorItem(
     modelUrl: product.model_url,
     position: initialPosition,
     rotationY: 0,
-    variantKey: getSafeModuleVariant(product.code, DEFAULT_MODULE_VARIANT),
-    doorConfiguration: hasConfigurableModuleVariants(product.code)
+    variantKey:
+      getSafeProductVariant(variantProducts, DEFAULT_MODULE_VARIANT) ||
+      getSafeModuleVariant(product.code, DEFAULT_MODULE_VARIANT),
+    variantProducts:
+      getProductVariantKeys(variantProducts).length > 1 ? variantProducts : undefined,
+    doorConfiguration:
+      getProductVariantKeys(variantProducts).length > 1 ||
+      hasConfigurableModuleVariants(product.code)
       ? { ...DEFAULT_DOOR_CONFIGURATION }
       : undefined,
     color: "#d8d3c7",
+  };
+}
+
+// Sostituisce i dati tecnici e l'asset dell'elemento senza perdere posizione, rotazione e finitura scelte.
+function createItemFromVariantProduct(
+  item: ConfiguratorItem,
+  product: Product,
+  variantKey: ModuleVariantKey
+): ConfiguratorItem {
+  return {
+    ...item,
+    productId: product.id,
+    nameIt: product.name_it,
+    nameEn: product.name_en,
+    code: product.code,
+    widthMm: product.width_mm,
+    heightMm: product.height_mm,
+    depthMm: product.depth_mm,
+    price: product.price,
+    modelUrl: product.model_url,
+    variantKey,
   };
 }
 

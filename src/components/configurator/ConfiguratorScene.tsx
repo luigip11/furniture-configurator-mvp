@@ -28,7 +28,9 @@ import {
 } from "@/store/configurator-calculations";
 import {
   ConfiguratorItem,
+  ModuleVariantKey,
   Product,
+  ProductVariantProducts,
   SCENE_MODE_OPTIONS,
   SceneMode,
 } from "@/types/configurator";
@@ -49,6 +51,7 @@ type CatalogDropRequest = {
   clientY: number;
   id: number;
   productId: string;
+  variantProductIds: Partial<Record<ModuleVariantKey, string>>;
 };
 
 type ViewCommandType = "zoom-in" | "zoom-out" | "rotate";
@@ -198,7 +201,11 @@ function SceneContent({
 
     if (!product || !point) return;
 
-    addProductAtPosition(product, [point.x, 0, point.z]);
+    addProductAtPosition(
+      product,
+      [point.x, 0, point.z],
+      getVariantProducts(products, catalogDropRequest.variantProductIds)
+    );
   }, [addProductAtPosition, catalogDropRequest, getGroundPoint, products]);
 
   useEffect(() => {
@@ -507,6 +514,11 @@ export function ConfiguratorScene({
       clientY: event.clientY,
       id: catalogDropIdRef.current,
       productId,
+      variantProductIds: readVariantProductIds(
+        event.dataTransfer.getData(
+          "application/x-configurator-product-variant-ids"
+        )
+      ),
     });
   }
 
@@ -701,6 +713,44 @@ export function ConfiguratorScene({
       </Canvas>
     </section>
   );
+}
+
+// Ricostruisce le varianti del catalogo dal payload drag senza accettare chiavi o valori non validi.
+function readVariantProductIds(
+  serializedVariantProductIds: string
+): Partial<Record<ModuleVariantKey, string>> {
+  try {
+    const parsed = JSON.parse(serializedVariantProductIds) as Record<string, unknown>;
+    const result: Partial<Record<ModuleVariantKey, string>> = {};
+    const validKeys: ModuleVariantKey[] = [
+      "two_visible_sides",
+      "one_visible_one_internal",
+      "two_internal_sides",
+    ];
+
+    validKeys.forEach((key) => {
+      if (typeof parsed[key] === "string") result[key] = parsed[key];
+    });
+
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+// Converte gli identificativi trascinati nei record completi che lo store usa per cambiare variante.
+function getVariantProducts(
+  products: Product[],
+  variantProductIds: Partial<Record<ModuleVariantKey, string>>
+): ProductVariantProducts {
+  return Object.fromEntries(
+    Object.entries(variantProductIds)
+      .map(([key, productId]) => [
+        key,
+        products.find((product) => product.id === productId),
+      ])
+      .filter((entry): entry is [ModuleVariantKey, Product] => Boolean(entry[1]))
+  ) as ProductVariantProducts;
 }
 
 // Adatta il limite di zoom-out all'ingombro reale dei moduli in scena.

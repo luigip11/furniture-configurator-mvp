@@ -48,15 +48,43 @@ test("i prodotti importati usano le misure decimali esatte della legenda Excel",
   assert.equal(bom[0]?.thicknessMm, 19.5);
 });
 
-test("le formule dimensionali dell'Excel restano esplicite nella distinta tecnica", () => {
+test("il top opzionale del contenitore usa le misure calcolate nel configuratore aggiornato", () => {
   const bom = getModuleBillOfMaterials(
     "CONTENITORE_IMPIANTI_CON_2_FIANCHI_A_VISTA",
     "two_visible_sides"
   );
   const top = bom.find((component) => component.name.includes("TOP COPERTURA"));
 
-  assert.equal(top?.depthMm, "665+19,5+15");
+  assert.equal(top?.widthMm, 730);
+  assert.equal(top?.depthMm, 699.5);
   assert.equal(top?.thicknessMm, 19.5);
+});
+
+test("le colonne libera alto e basso mantengono distinte tecniche differenti", () => {
+  const alto = getModuleBillOfMaterials(
+    "COLONNA_MISTA_IMPIANTO_ALTO_A_VISTA_DX",
+    "one_visible_one_internal"
+  );
+  const basso = getModuleBillOfMaterials(
+    "COLONNA_MISTA_IMPIANTO_BASSO_A_VISTA_DX",
+    "one_visible_one_internal"
+  );
+
+  assert.equal(alto.some((component) => component.code === "RFVP"), true);
+  assert.equal(basso.some((component) => component.code === "RRAVR"), true);
+  assert.equal(basso.some((component) => component.code === "SOTTOBC"), false);
+});
+
+test("la variante mista del sottolavatoio conserva un fianco per ciascun tipo", () => {
+  const bom = getModuleBillOfMaterials(
+    "BASE_SOTTOLAVATOIO_CON_1_FIANCHIA_VISTA_1_INTERNO",
+    "one_visible_one_internal"
+  );
+
+  assert.deepEqual(
+    bom.slice(0, 2).map((component) => [component.code, component.quantity]),
+    [["FAVSOTTOLAV", 1], ["FISOTTOLAV", 1]]
+  );
 });
 
 test("un prodotto non censito mantiene le tre varianti standard", () => {

@@ -31,6 +31,8 @@ export type ModuleVariantKey =
   | "one_visible_one_internal"
   | "two_internal_sides";
 
+export type ProductVariantProducts = Partial<Record<ModuleVariantKey, Product>>;
+
 export type DoorCountKey = "one" | "two";
 
 export type DoorMountKey = "flush_floor" | "visible_plinth";
@@ -294,6 +296,7 @@ export type ConfiguratorItem = {
   position: [number, number, number];
   rotationY: number;
   variantKey: ModuleVariantKey;
+  variantProducts?: ProductVariantProducts;
   doorConfiguration?: DoorConfiguration;
   color?: string;
 };

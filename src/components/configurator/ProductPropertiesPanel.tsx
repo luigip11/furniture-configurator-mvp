@@ -26,6 +26,7 @@ import {
   getAvailableModuleVariants,
   hasConfigurableModuleVariants,
 } from "@/lib/configurator/module-technical-catalog";
+import { getProductVariantKeys } from "@/lib/configurator/product-variants";
 
 export function ProductPropertiesPanel() {
   const [doorDialogOpen, setDoorDialogOpen] = useState(false);
@@ -76,8 +77,13 @@ export function ProductPropertiesPanel() {
   const positionStep = CONFIGURATOR_GRID_SIZE;
   const zMovementDisabled =
     sceneMode !== "open" || !allowFreeMovementInOpenScene;
-  const availableVariants = getAvailableModuleVariants(selectedItem.code);
-  const variantConfigurable = hasConfigurableModuleVariants(selectedItem.code);
+  const familyVariants = getProductVariantKeys(selectedItem.variantProducts);
+  const availableVariants =
+    familyVariants.length > 0
+      ? familyVariants
+      : getAvailableModuleVariants(selectedItem.code);
+  const variantConfigurable =
+    familyVariants.length > 1 || hasConfigurableModuleVariants(selectedItem.code);
   const doorConfiguration =
     selectedItem.doorConfiguration || DEFAULT_DOOR_CONFIGURATION;
   const doorConfigurationSummary = getDoorConfigurationSummary(

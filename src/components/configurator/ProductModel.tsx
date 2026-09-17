@@ -10,7 +10,11 @@ import {
 import { Edges, Html, Line, useGLTF } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
-import { getProportionalModelScale } from "@/lib/configurator/gltf-transform";
+import {
+  getGltfTransformPreset,
+  getIndependentModelScale,
+  getProportionalModelScale,
+} from "@/lib/configurator/gltf-transform";
 import { useConfiguratorStore } from "@/store/configurator-store";
 import {
   ConfiguratorItem,
@@ -215,6 +219,11 @@ function GltfProductBody({ item, modelUrl }: GltfProductBodyProps) {
 
   const fittedModel = useMemo(() => {
     const scene = gltf.scene.clone(true);
+    const preset = getGltfTransformPreset(item.code);
+
+    // Normalizza prima l'asse verticale: il bounding box deve riflettere la scena finale.
+    scene.rotation.x = preset.rotationX;
+    scene.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(scene);
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
@@ -223,15 +232,40 @@ function GltfProductBody({ item, modelUrl }: GltfProductBodyProps) {
       size.y || 1,
       size.z || 1
     );
-    const uniformScale = getProportionalModelScale(
-      { width: safeSize.x, height: safeSize.y, depth: safeSize.z },
-      { width: targetSize.x, height: targetSize.y, depth: targetSize.z }
+    const sourceSize = {
+      width: safeSize.x,
+      height: safeSize.y,
+      depth: safeSize.z,
+    };
+    const targetDimensions = {
+      width: targetSize.x,
+      height: targetSize.y,
+      depth: targetSize.z,
+    };
+    const scale =
+      preset.scaleMode === "independent"
+        ? getIndependentModelScale(sourceSize, targetDimensions)
+        : (() => {
+            const uniformScale = getProportionalModelScale(
+              sourceSize,
+              targetDimensions
+            );
+
+            return {
+              width: uniformScale,
+              height: uniformScale,
+              depth: uniformScale,
+            };
+          })();
+    const scaleVector = new THREE.Vector3(
+      scale.width,
+      scale.height,
+      scale.depth
     );
-    const scale = new THREE.Vector3(uniformScale, uniformScale, uniformScale);
     const position = new THREE.Vector3(
-      -center.x * scale.x,
-      -box.min.y * scale.y,
-      -center.z * scale.z
+      -center.x * scaleVector.x,
+      -box.min.y * scaleVector.y,
+      -center.z * scaleVector.z
     );
 
     scene.traverse((object) => {
@@ -241,8 +275,8 @@ function GltfProductBody({ item, modelUrl }: GltfProductBodyProps) {
       }
     });
 
-    return { position, scale, scene };
-  }, [gltf.scene, targetSize]);
+    return { position, scale: scaleVector, scene };
+  }, [gltf.scene, item.code, targetSize]);
 
   return (
     <primitive

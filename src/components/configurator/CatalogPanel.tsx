@@ -5,6 +5,10 @@ import { ChevronDown, GripVertical, Minus, Search, X } from "lucide-react";
 import { Locale, Product } from "@/types/configurator";
 import { useConfiguratorStore } from "@/store/configurator-store";
 import { dictionary } from "@/lib/i18n/dictionary";
+import {
+  CatalogProductFamily,
+  groupProductsIntoFamilies,
+} from "@/lib/configurator/product-variants";
 
 export type CatalogCollapsedGroups = Record<string, boolean>;
 
@@ -18,7 +22,7 @@ type CatalogPanelProps = {
 type CatalogGroup = {
   id: string;
   title: keyof typeof dictionary.it;
-  products: Product[];
+  products: CatalogProductFamily[];
 };
 
 const CATALOG_GROUPS = [
@@ -198,10 +202,10 @@ export function CatalogPanel({
                   <div className="space-y-2 border-t p-2">
                     {group.products.map((product) => (
                       <CatalogProductCard
-                        key={product.id}
+                        key={product.key}
                         locale={locale}
                         product={product}
-                        onAdd={() => addProduct(product)}
+                        onAdd={() => addProduct(product.product, product.variantProducts)}
                       />
                     ))}
                   </div>
@@ -218,7 +222,7 @@ export function CatalogPanel({
 type CatalogProductCardProps = {
   locale: Locale;
   onAdd: () => void;
-  product: Product;
+  product: CatalogProductFamily;
 };
 
 function CatalogProductCard({
@@ -227,8 +231,11 @@ function CatalogProductCard({
   product,
 }: CatalogProductCardProps) {
   const t = dictionary[locale];
+  const sourceProduct = product.product;
   const name =
-    locale === "it" ? product.name_it : product.name_en || product.name_it;
+    locale === "it"
+      ? sourceProduct.name_it
+      : sourceProduct.name_en || sourceProduct.name_it;
 
   return (
     <div
@@ -237,9 +244,20 @@ function CatalogProductCard({
         event.dataTransfer.effectAllowed = "copy";
         event.dataTransfer.setData(
           "application/x-configurator-product-id",
-          product.id
+          sourceProduct.id
         );
-        event.dataTransfer.setData("text/plain", product.id);
+        event.dataTransfer.setData(
+          "application/x-configurator-product-variant-ids",
+          JSON.stringify(
+            Object.fromEntries(
+              Object.entries(product.variantProducts).map(([key, variant]) => [
+                key,
+                variant?.id,
+              ])
+            )
+          )
+        );
+        event.dataTransfer.setData("text/plain", sourceProduct.id);
       }}
       className="cursor-grab rounded-lg border bg-white p-3 active:cursor-grabbing"
     >
@@ -250,14 +268,14 @@ function CatalogProductCard({
         />
         <div className="min-w-0">
           <p className="text-sm font-medium">{name}</p>
-          {product.code ? (
-            <p className="truncate text-xs text-gray-500" title={product.code}>
-              {t.code}: {product.code}
+          {sourceProduct.code ? (
+            <p className="truncate text-xs text-gray-500" title={sourceProduct.code}>
+              {t.code}: {sourceProduct.code}
             </p>
           ) : null}
           <p className="mt-1 text-xs text-gray-500">
-            L {product.width_mm} × A {product.height_mm} × P{" "}
-            {product.depth_mm} mm
+            L {sourceProduct.width_mm} × A {sourceProduct.height_mm} × P{" "}
+            {sourceProduct.depth_mm} mm
           </p>
         </div>
       </div>
@@ -287,13 +305,13 @@ function filterCatalogProducts(products: Product[], searchText: string) {
 }
 
 function groupCatalogProducts(products: Product[]): CatalogGroup[] {
-  const productsByGroup = new Map<string, Product[]>(
+  const productsByGroup = new Map<string, CatalogProductFamily[]>(
     CATALOG_GROUPS.map((group) => [group.id, []])
   );
 
-  products.forEach((product) => {
-    const groupId = getCatalogGroupId(product);
-    productsByGroup.get(groupId)?.push(product);
+  groupProductsIntoFamilies(products).forEach((family) => {
+    const groupId = getCatalogGroupId(family.product);
+    productsByGroup.get(groupId)?.push(family);
   });
 
   return CATALOG_GROUPS.map((group) => ({

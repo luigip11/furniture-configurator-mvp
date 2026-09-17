@@ -1,10 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
-import { Download, Trash2 } from "lucide-react";
+import { Download, List, Trash2 } from "lucide-react";
 import { useConfiguratorStore } from "@/store/configurator-store";
 import { dictionary } from "@/lib/i18n/dictionary";
-import { downloadTechnicalSheetPdf } from "@/lib/configurator/technical-sheet-pdf";
+import {
+  downloadAggregatedTechnicalSheetPdf,
+  downloadTechnicalSheetPdf,
+} from "@/lib/configurator/technical-sheet-pdf";
 import {
   DEFAULT_MODULE_VARIANT,
   getDoorConfigurationSummary,
@@ -52,6 +55,15 @@ export function QuotePanel() {
               className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-gray-100 text-gray-700 transition hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
             >
               <Download size={16} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              aria-label={t.downloadAggregateTechnicalSheet}
+              title={t.downloadAggregateTechnicalSheet}
+              onClick={() => downloadAggregatedTechnicalSheetPdf(items, locale)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-gray-100 text-gray-700 transition hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
+            >
+              <List size={16} aria-hidden="true" />
             </button>
           </div>
         ) : null}

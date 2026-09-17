@@ -11,6 +11,9 @@ import {
   ModuleBomComponent,
 } from "@/lib/configurator/module-technical-catalog";
 import {
+  getAggregatedBillOfMaterials,
+} from "@/lib/configurator/aggregated-bom";
+import {
   CONFIGURATOR_SCENE_SCALE,
   getItemFootprintMm,
 } from "@/store/configurator-calculations";
@@ -21,6 +24,8 @@ type FootprintSummary = {
   heightMm: number;
   widthMm: number;
 };
+
+export type { AggregatedBomComponent } from "@/lib/configurator/aggregated-bom";
 
 const PAGE_WIDTH = 595.28;
 const PAGE_HEIGHT = 841.89;
@@ -53,6 +58,33 @@ export function downloadTechnicalSheetPdf(
   URL.revokeObjectURL(url);
 }
 
+// Scarica una distinta unica che somma i componenti uguali di tutti i moduli in scena.
+export function downloadAggregatedTechnicalSheetPdf(
+  items: ConfiguratorItem[],
+  locale: Locale
+) {
+  if (items.length === 0) return;
+
+  const pdf = createAggregatedTechnicalSheetPdf(items, locale, new Date());
+  const blob = new Blob([pdf], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = `FurnitureConfigurator_${
+    locale === "it"
+      ? "Distinta_Aggregata"
+      : locale === "fr"
+        ? "Nomenclature_Groupee"
+        : "Aggregated_Bill"
+  }_${Date.now()}.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+
 function createTechnicalSheetPdf(
   items: ConfiguratorItem[],
   locale: Locale,
@@ -61,6 +93,59 @@ function createTechnicalSheetPdf(
   const pages = createPageStreams(items, locale, date);
 
   return createPdfDocument(pages);
+}
+
+// Genera il PDF compatto della distinta aggregata, separato dal dettaglio per modulo.
+function createAggregatedTechnicalSheetPdf(
+  items: ConfiguratorItem[],
+  locale: Locale,
+  date: Date
+) {
+  const components = getAggregatedBillOfMaterials(items);
+  const t = dictionary[locale];
+  const pageStreams: string[] = [];
+  let currentPage: string[] = [];
+  let y = PAGE_HEIGHT - 56.69;
+
+  const flushPage = () => {
+    pageStreams.push(`${currentPage.join("\n")}\n`);
+    currentPage = [];
+  };
+  const addText = (text: string, x: number, textY: number, size = 11) => {
+    currentPage.push(pdfText(text, x, textY, "F1", size));
+  };
+  const addBoldText = (text: string, x: number, textY: number, size = 11) => {
+    currentPage.push(pdfText(text, x, textY, "F2", size));
+  };
+  const addPageHeader = (continuation = false) => {
+    addBoldText(continuation ? t.pdfContinuation : t.pdfAggregateTitle, PAGE_MARGIN_X, y, continuation ? 18 : 22);
+    y -= 28;
+    if (!continuation) {
+      addText(`${locale === "it" ? "Data" : "Date"}: ${formatDate(date, locale)}`, PAGE_MARGIN_X, y, 10);
+      y -= 16;
+    }
+    addText(`${items.length} ${t.modules} / ${components.length} ${t.pdfTechnicalComponents.toLowerCase()}`, PAGE_MARGIN_X, y, 10);
+    y -= 17;
+    currentPage.push(`${formatNumber(PAGE_MARGIN_X)} ${formatNumber(y)} m ${formatNumber(CONTENT_RIGHT)} ${formatNumber(y)} l S`);
+    y -= 24;
+  };
+
+  currentPage.push("0.567 w");
+  addPageHeader();
+
+  components.forEach((component) => {
+    if (y - 20 <= PAGE_BOTTOM) {
+      flushPage();
+      y = PAGE_HEIGHT - 56.69;
+      currentPage.push("0.567 w");
+      addPageHeader(true);
+    }
+    addText(formatBomComponentLine(component, t), PAGE_MARGIN_X, y, 8.5);
+    y -= 15;
+  });
+
+  flushPage();
+  return createPdfDocument(pageStreams);
 }
 
 function createPageStreams(
@@ -242,6 +327,7 @@ function formatBomComponentLine(
     component.name
   }${optional}${dimensions ? ` | ${dimensions}` : ""}`;
 }
+
 
 // Normalizza numeri e formule testuali della legenda prima di scriverli nel PDF.
 function formatBomValue(value: ModuleBomComponent[keyof ModuleBomComponent]) {

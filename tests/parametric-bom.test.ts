@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { getItemBillOfMaterials } from "../src/lib/configurator/module-technical-catalog.ts";
+import { getAggregatedBillOfMaterials } from "../src/lib/configurator/aggregated-bom.ts";
 import type { ConfiguratorItem } from "../src/types/configurator.ts";
 
 // Crea un modulo essenziale per verificare le formule della distinta parametrica.
@@ -75,4 +76,16 @@ test("ricalcola le quote del pensile orizzontale senza fissarle al campione 700 
 
   assert.equal(back?.widthMm, 1361);
   assert.equal(back?.heightMm, 400);
+});
+
+test("somma solo componenti con le stesse quote e lascia RIPINT senza quantità", () => {
+  const firstItem = createItem("BASE_CON_2_FIANCHI_INTERNI", 700, 880, 665);
+  const secondItem = createItem("BASE_CON_2_FIANCHI_INTERNI", 700, 880, 665);
+
+  const aggregated = getAggregatedBillOfMaterials([firstItem, secondItem]);
+  const internalSide = aggregated.find((component) => component.code === "FIB");
+  const shelf = aggregated.find((component) => component.code === "RIPINT");
+
+  assert.equal(internalSide?.quantity, 4);
+  assert.equal(shelf?.quantity, null);
 });

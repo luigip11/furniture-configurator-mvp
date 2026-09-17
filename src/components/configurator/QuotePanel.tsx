@@ -11,7 +11,7 @@ import {
   getModuleVariantLabel,
 } from "@/types/configurator";
 import {
-  getModuleBillOfMaterials,
+  getItemBillOfMaterials,
   hasConfigurableModuleVariants,
 } from "@/lib/configurator/module-technical-catalog";
 
@@ -72,10 +72,7 @@ export function QuotePanel() {
               item.doorConfiguration,
               locale
             );
-            const bomCount = getModuleBillOfMaterials(
-              item.code,
-              item.variantKey || DEFAULT_MODULE_VARIANT
-            ).length;
+            const bomCount = getItemBillOfMaterials(item).length;
 
             return (
               <div

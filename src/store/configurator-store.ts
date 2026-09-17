@@ -1,8 +1,10 @@
 import { create } from "zustand";
 import {
   ConfiguratorItem,
+  BaseFinishConfiguration,
   ConfiguratorSettings,
   DEFAULT_CONFIGURATOR_SETTINGS,
+  DEFAULT_BASE_FINISH_CONFIGURATION,
   DEFAULT_DOOR_CONFIGURATION,
   DEFAULT_MODULE_VARIANT,
   DoorConfiguration,
@@ -80,6 +82,10 @@ type ConfiguratorStore = {
     data: Partial<DoorConfiguration>
   ) => void;
   updateVariant: (itemId: string, variantKey: ModuleVariantKey) => void;
+  updateBaseFinishConfiguration: (
+    itemId: string,
+    data: Partial<BaseFinishConfiguration>
+  ) => void;
   updatePosition: (
     itemId: string,
     position: [number, number, number],
@@ -287,6 +293,25 @@ export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
     });
   },
 
+  // Aggiorna gli optional tecnici della base senza modificare le quote del mobile.
+  updateBaseFinishConfiguration: (itemId, data) => {
+    get().commitHistory();
+    set({
+      items: get().items.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              baseFinishConfiguration: {
+                ...(item.baseFinishConfiguration ||
+                  DEFAULT_BASE_FINISH_CONFIGURATION),
+                ...data,
+              },
+            }
+          : item
+      ),
+    });
+  },
+
   updatePosition: (itemId, position, options = { recordHistory: true }) => {
     if (options.recordHistory !== false) {
       get().commitHistory();
@@ -449,6 +474,9 @@ function cloneSnapshot(
       ...item,
       doorConfiguration: item.doorConfiguration
         ? { ...item.doorConfiguration }
+        : undefined,
+      baseFinishConfiguration: item.baseFinishConfiguration
+        ? { ...item.baseFinishConfiguration }
         : undefined,
       position: [...item.position],
       variantProducts: item.variantProducts ? { ...item.variantProducts } : undefined,

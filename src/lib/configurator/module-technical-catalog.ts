@@ -4,6 +4,8 @@ import {
 } from "../../types/configurator.ts";
 import type { ModuleVariantKey } from "../../types/configurator.ts";
 import { GENERATED_TECHNICAL_CATALOG } from "./generated-technical-catalog.ts";
+import { getParametricBillOfMaterials } from "./parametric-bom.ts";
+import type { ConfiguratorItem } from "../../types/configurator.ts";
 
 // Catalogo tecnico derivato dalla legenda allegata: collega prodotti, varianti e distinta base.
 export type ModuleBomComponent = {
@@ -473,6 +475,17 @@ export function getModuleBillOfMaterials(
   const safeVariant = getSafeModuleVariant(code, variantKey);
 
   return definition.bomByVariant[safeVariant] || [];
+}
+
+// Restituisce la distinta del singolo elemento, ricalcolandola quando esistono formule tecniche note.
+export function getItemBillOfMaterials(item: ConfiguratorItem) {
+  return (
+    getParametricBillOfMaterials(item) ||
+    getModuleBillOfMaterials(
+      item.code,
+      item.variantKey || DEFAULT_MODULE_VARIANT
+    )
+  );
 }
 
 // Preferisce la distinta generata dall'Excel e mantiene il catalogo storico come fallback.

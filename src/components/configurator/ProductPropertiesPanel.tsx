@@ -11,6 +11,7 @@ import {
 import { dictionary } from "@/lib/i18n/dictionary";
 import {
   DEFAULT_DOOR_CONFIGURATION,
+  DEFAULT_BASE_FINISH_CONFIGURATION,
   DEFAULT_MODULE_VARIANT,
   DOOR_COATING_OPTIONS,
   DOOR_COUNT_OPTIONS,
@@ -27,6 +28,7 @@ import {
   hasConfigurableModuleVariants,
 } from "@/lib/configurator/module-technical-catalog";
 import { getProductVariantKeys } from "@/lib/configurator/product-variants";
+import { canConfigureBaseFinish } from "@/lib/configurator/parametric-bom";
 
 export function ProductPropertiesPanel() {
   const [doorDialogOpen, setDoorDialogOpen] = useState(false);
@@ -44,6 +46,9 @@ export function ProductPropertiesPanel() {
   );
   const updateItem = useConfiguratorStore((state) => state.updateItem);
   const updateVariant = useConfiguratorStore((state) => state.updateVariant);
+  const updateBaseFinishConfiguration = useConfiguratorStore(
+    (state) => state.updateBaseFinishConfiguration
+  );
   const duplicateItem = useConfiguratorStore((state) => state.duplicateItem);
   const rotateItem = useConfiguratorStore((state) => state.rotateItem);
   const moveItem = useConfiguratorStore((state) => state.moveItem);
@@ -84,6 +89,35 @@ export function ProductPropertiesPanel() {
       : getAvailableModuleVariants(selectedItem.code);
   const variantConfigurable =
     familyVariants.length > 1 || hasConfigurableModuleVariants(selectedItem.code);
+  const baseFinishConfigurable = canConfigureBaseFinish(selectedItem.code);
+  const baseFinishConfiguration =
+    selectedItem.baseFinishConfiguration || DEFAULT_BASE_FINISH_CONFIGURATION;
+  const baseFinishLabels = {
+    it: {
+      title: "Top e ante",
+      top: "Includi top",
+      doors: "Ante nominali",
+      noDoors: "Nessuna anta",
+      oneDoor: "1 anta",
+      twoDoors: "2 ante",
+    },
+    en: {
+      title: "Top and doors",
+      top: "Include top",
+      doors: "Nominal doors",
+      noDoors: "No doors",
+      oneDoor: "1 door",
+      twoDoors: "2 doors",
+    },
+    fr: {
+      title: "Dessus et portes",
+      top: "Inclure le dessus",
+      doors: "Portes nominales",
+      noDoors: "Aucune porte",
+      oneDoor: "1 porte",
+      twoDoors: "2 portes",
+    },
+  }[locale];
   const doorConfiguration =
     selectedItem.doorConfiguration || DEFAULT_DOOR_CONFIGURATION;
   const doorConfigurationSummary = getDoorConfigurationSummary(
@@ -187,6 +221,45 @@ export function ProductPropertiesPanel() {
                   {t.configureDoor}
                 </button>
               </div>
+            ) : null}
+
+            {baseFinishConfigurable ? (
+              <fieldset className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+                <legend className="px-1 text-sm font-semibold text-gray-900">
+                  {baseFinishLabels.title}
+                </legend>
+                <label className="mt-1 flex cursor-pointer items-center gap-2 text-sm text-gray-800">
+                  <input
+                    checked={baseFinishConfiguration.hasTop}
+                    type="checkbox"
+                    onChange={(event) =>
+                      updateBaseFinishConfiguration(selectedItem.id, {
+                        hasTop: event.target.checked,
+                      })
+                    }
+                  />
+                  {baseFinishLabels.top}
+                </label>
+                <label className="mt-3 block text-sm font-medium text-gray-700">
+                  <span className="mb-1 block">{baseFinishLabels.doors}</span>
+                  <select
+                    value={baseFinishConfiguration.doorCount}
+                    onChange={(event) =>
+                      updateBaseFinishConfiguration(selectedItem.id, {
+                        doorCount: event.target.value as
+                          | "none"
+                          | "one"
+                          | "two",
+                      })
+                    }
+                    className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-gray-500"
+                  >
+                    <option value="none">{baseFinishLabels.noDoors}</option>
+                    <option value="one">{baseFinishLabels.oneDoor}</option>
+                    <option value="two">{baseFinishLabels.twoDoors}</option>
+                  </select>
+                </label>
+              </fieldset>
             ) : null}
 
             <NumberField

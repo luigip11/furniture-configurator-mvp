@@ -6,7 +6,7 @@ import {
   getModuleVariantLabel,
 } from "@/types/configurator";
 import {
-  getModuleBillOfMaterials,
+  getItemBillOfMaterials,
   hasConfigurableModuleVariants,
   ModuleBomComponent,
 } from "@/lib/configurator/module-technical-catalog";
@@ -135,10 +135,7 @@ function createPageStreams(
   y -= 28.35;
 
   items.forEach((item, index) => {
-    const bomComponents = getModuleBillOfMaterials(
-      item.code,
-      item.variantKey || DEFAULT_MODULE_VARIANT
-    );
+    const bomComponents = getItemBillOfMaterials(item);
 
     ensureSpace(92 + bomComponents.length * 16);
 

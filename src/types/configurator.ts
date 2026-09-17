@@ -56,6 +56,11 @@ export type DoorConfiguration = {
   machining: DoorMachiningKey;
 };
 
+export type BaseFinishConfiguration = {
+  hasTop: boolean;
+  doorCount: DoorCountKey | "none";
+};
+
 export type SceneMode = "open" | "wall" | "front";
 
 export type ConfiguratorSettings = {
@@ -101,6 +106,11 @@ export const DEFAULT_DOOR_CONFIGURATION: DoorConfiguration = {
   mount: "flush_floor",
   coating: "spv_basin",
   machining: "smooth",
+};
+
+export const DEFAULT_BASE_FINISH_CONFIGURATION: BaseFinishConfiguration = {
+  hasTop: false,
+  doorCount: "none",
 };
 
 export const MODULE_VARIANT_OPTIONS = [
@@ -297,6 +307,7 @@ export type ConfiguratorItem = {
   rotationY: number;
   variantKey: ModuleVariantKey;
   variantProducts?: ProductVariantProducts;
+  baseFinishConfiguration?: BaseFinishConfiguration;
   doorConfiguration?: DoorConfiguration;
   color?: string;
 };

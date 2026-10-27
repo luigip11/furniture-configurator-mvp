@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+
 type Props = {
   disabled?: boolean;
   id: string;
@@ -11,7 +13,7 @@ type Props = {
   onChange: (value: number) => void;
 };
 
-// Conferma il numero al blur o con Invio: consente di digitare senza applicare valori intermedi vuoti.
+// Applica subito gli incrementi delle frecce e conferma la digitazione al blur o con Invio.
 export function ModuleNumberField({
   disabled = false,
   id,
@@ -22,13 +24,21 @@ export function ModuleNumberField({
   max,
   onChange,
 }: Props) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const steppingRef = useRef(false);
+
+  // Sincronizza le quote esterne senza rimontare il campo e interrompere focus o clic prolungati.
+  useEffect(() => {
+    if (inputRef.current) inputRef.current.value = String(value);
+  }, [value]);
+
   return (
     <label className="block" htmlFor={id}>
       <span className="mb-1 block text-sm font-medium text-gray-700">
         {label}
       </span>
       <input
-        key={`${id}:${value}`}
+        ref={inputRef}
         id={id}
         type="number"
         defaultValue={value}
@@ -37,11 +47,26 @@ export function ModuleNumberField({
         max={max}
         disabled={disabled}
         aria-describedby={min !== undefined ? `${id}-limits` : undefined}
+        onPointerDown={() => {
+          steppingRef.current = true;
+        }}
+        onPaste={() => {
+          steppingRef.current = false;
+        }}
+        onDrop={() => {
+          steppingRef.current = false;
+        }}
+        onChange={(event) => {
+          if (steppingRef.current) onChange(event.currentTarget.valueAsNumber);
+        }}
         onBlur={(event) => {
+          steppingRef.current = false;
           onChange(event.currentTarget.valueAsNumber);
           event.currentTarget.value = String(value);
         }}
         onKeyDown={(event) => {
+          steppingRef.current =
+            event.key === "ArrowUp" || event.key === "ArrowDown";
           if (event.key === "Enter") {
             event.preventDefault();
             event.currentTarget.blur();

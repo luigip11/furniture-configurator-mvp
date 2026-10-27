@@ -255,22 +255,28 @@ export function ProductPropertiesPanel() {
                   </label>
                   <label className="mt-3 block text-sm font-medium text-gray-700">
                     <span className="mb-1 block">{baseFinishLabels.doors}</span>
-                    <select
-                      value={baseFinishConfiguration.doorCount}
-                      onChange={(event) =>
-                        updateBaseFinishConfiguration(selectedItem.id, {
-                          doorCount: event.target.value as
-                            | "none"
-                            | "one"
-                            | "two",
-                        })
-                      }
-                      className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-gray-500"
-                    >
-                      <option value="none">{baseFinishLabels.noDoors}</option>
-                      <option value="one">{baseFinishLabels.oneDoor}</option>
-                      <option value="two">{baseFinishLabels.twoDoors}</option>
-                    </select>
+                    <div className="relative">
+                      <select
+                        value={baseFinishConfiguration.doorCount}
+                        onChange={(event) =>
+                          updateBaseFinishConfiguration(selectedItem.id, {
+                            doorCount: event.target.value as
+                              | "none"
+                              | "one"
+                              | "two",
+                          })
+                        }
+                        className="w-full appearance-none rounded-lg border bg-white py-2 pl-3 pr-12 text-sm outline-none focus:border-gray-500"
+                      >
+                        <option value="none">{baseFinishLabels.noDoors}</option>
+                        <option value="one">{baseFinishLabels.oneDoor}</option>
+                        <option value="two">{baseFinishLabels.twoDoors}</option>
+                      </select>
+                      <ChevronDown
+                        className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500"
+                        aria-hidden="true"
+                      />
+                    </div>
                   </label>
                 </fieldset>
               ) : null}

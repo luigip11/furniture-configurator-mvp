@@ -174,16 +174,14 @@ test("i moduli in quota non collidono con una base sottostante e conservano la q
   const store = createConfiguratorStore();
   store.getState().updateSettings({ allowFreeMovementInOpenScene: true });
   store.getState().addProductAtPosition(product(), [0, 0, 0]);
-  store
-    .getState()
-    .addProductAtPosition(
-      product({
-        code: "PENSILE_ORIZZONTALE_A_VISTA_DX",
-        height_mm: 439,
-        depth_mm: 350,
-      }),
-      [0, 0, 0],
-    );
+  store.getState().addProductAtPosition(
+    product({
+      code: "PENSILE_ORIZZONTALE_A_VISTA_DX",
+      height_mm: 439,
+      depth_mm: 350,
+    }),
+    [0, 0, 0],
+  );
   assert.equal(store.getState().configurationError, null);
   store.getState().updatePosition(store.getState().selectedItemId!, [1, 0, 2]);
   assert.equal(store.getState().items[1].position[1], 2);
@@ -205,11 +203,9 @@ test("un gesto di trascinamento produce un solo undo e i gesti rifiutati non con
   const item = store.getState().items[1];
   const before = store.getState();
   store.getState().commitHistory();
-  store
-    .getState()
-    .updatePosition(item.id, store.getState().items[0].position, {
-      recordHistory: false,
-    });
+  store.getState().updatePosition(item.id, store.getState().items[0].position, {
+    recordHistory: false,
+  });
   assert.equal(store.getState().past.length, before.past.length);
   store.getState().updatePosition(item.id, [2, 0, 2], { recordHistory: false });
   store.getState().updatePosition(item.id, [3, 0, 3], { recordHistory: false });
@@ -252,14 +248,15 @@ test("cambio variante SX/DX mantiene tutte le quote, finiture e il record modell
   const products = ["DX", "SX", "SX_E_DX"].map((side) =>
     product({
       id: side,
-      code: `COLONNA_MISTA_IMPIANTO_ALTO_A_VISTA_${side}`,
+      code: `PENSILE_ORIZZONTALE_A_VISTA_${side}`,
       model_url: `${side}.glb`,
-      height_mm: 2282,
+      height_mm: 439,
+      depth_mm: 350,
     }),
   );
   const family = searchCatalogFamilies(
     products,
-    "COLONNA_MISTA_IMPIANTO_ALTO_A_VISTA_SX",
+    "PENSILE_ORIZZONTALE_A_VISTA_SX",
   )[0];
   const store = createConfiguratorStore();
   store.getState().addProduct(family.product, family.variantProducts);
@@ -267,7 +264,7 @@ test("cambio variante SX/DX mantiene tutte le quote, finiture e il record modell
   const id = store.getState().selectedItemId!;
   store
     .getState()
-    .updateItem(id, { widthMm: 1000, heightMm: 2400, depthMm: 800 });
+    .updateItem(id, { widthMm: 1000, heightMm: 500, depthMm: 450 });
   store.getState().updateDoorConfiguration(id, { count: "two" });
   const before = store.getState().items[0];
   store.getState().updateVariant(id, "visible_right");
@@ -278,7 +275,7 @@ test("cambio variante SX/DX mantiene tutte le quote, finiture e il record modell
   assert.equal(after.productVariantKey, "visible_right");
   assert.deepEqual(
     [after.widthMm, after.heightMm, after.depthMm],
-    [1000, 2400, 800],
+    [1000, 500, 450],
   );
   assert.deepEqual(after.doorConfiguration, before.doorConfiguration);
   assert.deepEqual(after.position, before.position);

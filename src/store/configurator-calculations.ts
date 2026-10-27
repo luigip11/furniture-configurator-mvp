@@ -4,8 +4,12 @@ import type {
   SceneMode,
 } from "@/types/configurator";
 
+import { CONFIGURATOR_SCENE_SCALE } from "../lib/configurator/scene-scale.ts";
+import { getRotatedModuleFootprint } from "../lib/configurator/module-envelope.ts";
+import type { FootprintItem } from "../lib/configurator/module-envelope.ts";
+
 export const CONFIGURATOR_GRID_SIZE = 0.25;
-export const CONFIGURATOR_SCENE_SCALE = 700;
+export { CONFIGURATOR_SCENE_SCALE } from "../lib/configurator/scene-scale.ts";
 export const CONFIGURATOR_GRID_HALF_SIZE = 7;
 export const WALL_UNIT_DEFAULT_BOTTOM_MM = 1400;
 
@@ -14,7 +18,7 @@ export function snapToGrid(value: number) {
   return Number(
     (
       Math.round(value / CONFIGURATOR_GRID_SIZE) * CONFIGURATOR_GRID_SIZE
-    ).toFixed(2)
+    ).toFixed(2),
   );
 }
 
@@ -25,7 +29,7 @@ export function normalizeRotation(rotationY: number) {
 
 // Applica lo snap solo sugli assi manipolabili dal piano di lavoro.
 export function snapPosition(
-  position: [number, number, number]
+  position: [number, number, number],
 ): [number, number, number] {
   return [snapToGrid(position[0]), position[1], snapToGrid(position[2])];
 }
@@ -43,59 +47,66 @@ export function getWallUnitSceneBottom() {
 // Decide se la scena deve mantenere i moduli agganciati o lasciare movimento libero.
 export function shouldDockComposition(
   sceneMode: SceneMode,
-  settings: Pick<ConfiguratorSettings, "allowFreeMovementInOpenScene">
+  settings: Pick<ConfiguratorSettings, "allowFreeMovementInOpenScene">,
 ) {
   return sceneMode !== "open" || !settings.allowFreeMovementInOpenScene;
 }
 
-export function getItemFootprintMm(
-  item: Pick<ConfiguratorItem, "widthMm" | "depthMm" | "rotationY">
-) {
-  const normalizedRotation = normalizeRotation(item.rotationY || 0);
-  const rotated = normalizedRotation === 90 || normalizedRotation === 270;
-
-  return {
-    widthMm: rotated ? item.depthMm : item.widthMm,
-    depthMm: rotated ? item.widthMm : item.depthMm,
-  };
+// Comprende le sporgenze opzionali e il loro orientamento.
+export function getItemFootprintMm(item: FootprintItem) {
+  return getRotatedModuleFootprint(item);
 }
 
-export function getItemFootprintScene(
-  item: Pick<ConfiguratorItem, "widthMm" | "depthMm" | "rotationY">
-) {
+export function getItemFootprintScene(item: FootprintItem) {
   const footprint = getItemFootprintMm(item);
 
   return {
     width: footprint.widthMm / CONFIGURATOR_SCENE_SCALE,
     depth: footprint.depthMm / CONFIGURATOR_SCENE_SCALE,
+    offsetX: footprint.offsetXMm / CONFIGURATOR_SCENE_SCALE,
+    offsetZ: footprint.offsetZMm / CONFIGURATOR_SCENE_SCALE,
   };
 }
 
 // Mantiene il modulo interamente dentro il piano quadrettato visibile.
 export function clampItemPositionToGridBounds(
-  item: Pick<ConfiguratorItem, "widthMm" | "depthMm" | "rotationY">,
-  position: [number, number, number]
+  item: FootprintItem,
+  position: [number, number, number],
 ): [number, number, number] {
   const footprint = getItemFootprintScene(item);
-  const maxX = Math.max(0, CONFIGURATOR_GRID_HALF_SIZE - footprint.width / 2);
-  const maxZ = Math.max(0, CONFIGURATOR_GRID_HALF_SIZE - footprint.depth / 2);
+  const maxX = CONFIGURATOR_GRID_HALF_SIZE - footprint.width / 2;
+  const maxZ = CONFIGURATOR_GRID_HALF_SIZE - footprint.depth / 2;
 
   return [
-    snapWithinBounds(position[0], maxX),
+    snapWithinBounds(
+      position[0],
+      -maxX - footprint.offsetX,
+      maxX - footprint.offsetX,
+    ),
     position[1],
-    snapWithinBounds(position[2], maxZ),
+    snapWithinBounds(
+      position[2],
+      -maxZ - footprint.offsetZ,
+      maxZ - footprint.offsetZ,
+    ),
   ];
 }
 
 // Arrotonda verso l'interno i limiti prima dello snap, evitando fuoriuscite dal piano.
-function snapWithinBounds(value: number, maximum: number) {
-  const safeMaximum = Math.floor((maximum + 1e-9) / CONFIGURATOR_GRID_SIZE) * CONFIGURATOR_GRID_SIZE;
-  return Math.min(safeMaximum, Math.max(-safeMaximum, snapToGrid(value)));
+function snapWithinBounds(value: number, minimum: number, maximum: number) {
+  const low =
+    Math.ceil((minimum - 1e-9) / CONFIGURATOR_GRID_SIZE) *
+    CONFIGURATOR_GRID_SIZE;
+  const high =
+    Math.floor((maximum + 1e-9) / CONFIGURATOR_GRID_SIZE) *
+    CONFIGURATOR_GRID_SIZE;
+  if (low > high) return (minimum + maximum) / 2;
+  return Math.min(high, Math.max(low, snapToGrid(value)));
 }
 
 export function getAlignedPositionForSceneMode(
   item: ConfiguratorItem,
-  sceneMode: SceneMode
+  sceneMode: SceneMode,
 ): [number, number, number] {
   if (sceneMode === "open") {
     return clampItemPositionToGridBounds(item, item.position);
@@ -104,14 +115,15 @@ export function getAlignedPositionForSceneMode(
   const footprint = getItemFootprintScene(item);
   const [x, y] = item.position;
   const z =
-    sceneMode === "wall" ? footprint.depth / 2 : -footprint.depth / 2;
+    (sceneMode === "wall" ? footprint.depth / 2 : -footprint.depth / 2) -
+    footprint.offsetZ;
 
-  const maxX = Math.max(0, CONFIGURATOR_GRID_HALF_SIZE - footprint.width / 2);
+  const maxX = CONFIGURATOR_GRID_HALF_SIZE - footprint.width / 2;
 
   // Mantiene il bordo del modulo esattamente sulla guida: lo snap della Z
   // sposterebbe l'elemento fuori filo quando la profondita non e multipla della griglia.
   return [
-    snapWithinBounds(x, maxX),
+    snapWithinBounds(x, -maxX - footprint.offsetX, maxX - footprint.offsetX),
     y,
     z,
   ];
@@ -120,7 +132,7 @@ export function getAlignedPositionForSceneMode(
 // Ricompone i moduli in una fila continua, rispettando l'ordine logico corrente.
 export function getDockedCompositionItems(
   items: ConfiguratorItem[],
-  sceneMode: SceneMode
+  sceneMode: SceneMode,
 ) {
   const sortedItems = [...items].sort((firstItem, secondItem) => {
     const firstX = firstItem.position[0];
@@ -139,7 +151,7 @@ export function getDockedItemsAfterMove(
   items: ConfiguratorItem[],
   itemId: string,
   desiredPosition: [number, number, number],
-  sceneMode: SceneMode
+  sceneMode: SceneMode,
 ) {
   const movingItem = items.find((item) => item.id === itemId);
 
@@ -147,8 +159,9 @@ export function getDockedItemsAfterMove(
 
   const desiredX = snapToGrid(desiredPosition[0]);
   const stableItems = items.filter((item) => item.id !== itemId);
-  const insertIndex = stableItems.filter((item) => item.position[0] < desiredX)
-    .length;
+  const insertIndex = stableItems.filter(
+    (item) => item.position[0] < desiredX,
+  ).length;
   const nextItems = [
     ...stableItems.slice(0, insertIndex),
     {
@@ -169,7 +182,7 @@ export function getDockedItemsAfterMove(
 export function getNonOverlappingAlignedPosition(
   item: ConfiguratorItem,
   items: ConfiguratorItem[],
-  sceneMode: SceneMode
+  sceneMode: SceneMode,
 ): [number, number, number] {
   const alignedPosition = getAlignedPositionForSceneMode(item, sceneMode);
 
@@ -205,7 +218,7 @@ export function getNonOverlappingAlignedPosition(
     .filter(
       (candidate, index, candidates) =>
         candidates.indexOf(candidate) === index &&
-        !hasHorizontalOverlap(candidate, halfWidth, occupiedIntervals)
+        !hasHorizontalOverlap(candidate, halfWidth, occupiedIntervals),
     )
     .sort((a, b) => Math.abs(a - desiredX) - Math.abs(b - desiredX))[0];
 
@@ -213,7 +226,7 @@ export function getNonOverlappingAlignedPosition(
 
   const rightEdge = occupiedIntervals.reduce(
     (maxRight, interval) => Math.max(maxRight, interval.right),
-    0
+    0,
   );
 
   return [snapToGrid(rightEdge + halfWidth), y, z];
@@ -222,19 +235,25 @@ export function getNonOverlappingAlignedPosition(
 // Calcola la prossima posizione libera affiancando il nuovo modulo a quelli esistenti.
 export function getNextPosition(
   items: ConfiguratorItem[],
-  widthMm: number
+  widthMm: number,
 ): [number, number, number] {
   if (items.length === 0) return [0, 0, 0];
 
   const rightEdge = Math.max(
-    ...items.map((item) => item.position[0] + getItemFootprintScene(item).width / 2)
+    ...items.map(
+      (item) =>
+        item.position[0] +
+        getItemFootprintScene(item).offsetX +
+        getItemFootprintScene(item).width / 2,
+    ),
   );
   const width = widthMm / CONFIGURATOR_SCENE_SCALE;
 
-  return clampItemPositionToGridBounds(
-    { widthMm, depthMm: 0, rotationY: 0 },
-    [snapToGrid(rightEdge + width / 2), 0, 0]
-  );
+  return clampItemPositionToGridBounds({ widthMm, depthMm: 0, rotationY: 0 }, [
+    snapToGrid(rightEdge + width / 2),
+    0,
+    0,
+  ]);
 }
 
 // Stabilisce se un prodotto deve nascere alla quota pensile invece che a terra.
@@ -252,7 +271,10 @@ export function isWallUnitProduct(product: {
 }
 
 // Allinea una sequenza partendo dal bordo sinistro e preservando quota e profondita dei moduli.
-function positionItemsFromLeft(items: ConfiguratorItem[], sceneMode: SceneMode) {
+function positionItemsFromLeft(
+  items: ConfiguratorItem[],
+  sceneMode: SceneMode,
+) {
   if (items.length === 0) return [];
 
   const alignedItems = items.map((item) => ({
@@ -261,24 +283,20 @@ function positionItemsFromLeft(items: ConfiguratorItem[], sceneMode: SceneMode) 
   }));
   const totalWidth = alignedItems.reduce(
     (sum, item) => sum + getItemFootprintScene(item).width,
-    0
+    0,
   );
   let leftEdge = -totalWidth / 2;
 
   return alignedItems.map((item) => {
     const footprint = getItemFootprintScene(item);
-    const centerX = leftEdge + footprint.width / 2;
+    const centerX = leftEdge + footprint.width / 2 - footprint.offsetX;
     const [, y, z] = item.position;
 
     leftEdge += footprint.width;
 
     return {
       ...item,
-      position: [
-        centerX,
-        y,
-        z,
-      ] satisfies [number, number, number],
+      position: [centerX, y, z] satisfies [number, number, number],
     };
   });
 }
@@ -286,7 +304,7 @@ function positionItemsFromLeft(items: ConfiguratorItem[], sceneMode: SceneMode) 
 // Blocca la profondita della composizione e delega alle viste tecniche l'allineamento dedicato.
 function getAlignedCompositionPosition(
   item: ConfiguratorItem,
-  sceneMode: SceneMode
+  sceneMode: SceneMode,
 ): [number, number, number] {
   if (sceneMode !== "open") {
     return getAlignedPositionForSceneMode(item, sceneMode);
@@ -301,13 +319,14 @@ function getAlignedCompositionPosition(
 function hasHorizontalOverlap(
   centerX: number,
   halfWidth: number,
-  intervals: { left: number; right: number }[]
+  intervals: { left: number; right: number }[],
 ) {
   const epsilon = 0.001;
   const left = centerX - halfWidth;
   const right = centerX + halfWidth;
 
   return intervals.some(
-    (interval) => right > interval.left + epsilon && left < interval.right - epsilon
+    (interval) =>
+      right > interval.left + epsilon && left < interval.right - epsilon,
   );
 }

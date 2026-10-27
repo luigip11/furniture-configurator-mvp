@@ -1,31 +1,26 @@
 import {
-  ConfiguratorItem,
   DEFAULT_MODULE_VARIANT,
-  Locale,
   getDoorConfigurationSummary,
   getModuleVariantLabel,
-} from "@/types/configurator";
+} from "../../types/configurator.ts";
+import type { ConfiguratorItem, Locale } from "../../types/configurator.ts";
 import {
   getItemBillOfMaterials,
   hasConfigurableModuleVariants,
-  ModuleBomComponent,
-} from "@/lib/configurator/module-technical-catalog";
+} from "./module-technical-catalog.ts";
+import type { ModuleBomComponent } from "./module-technical-catalog.ts";
 import {
   getAggregatedBillOfMaterials,
-} from "@/lib/configurator/aggregated-bom";
-import {
-  CONFIGURATOR_SCENE_SCALE,
-  getItemFootprintMm,
-} from "@/store/configurator-calculations";
-import { dictionary } from "@/lib/i18n/dictionary";
+  getComponentQuantity,
+} from "./aggregated-bom.ts";
+import { getCompositionFootprint } from "./module-envelope.ts";
+import { getEffectiveDoorConfiguration } from "./module-capabilities.ts";
+import { canConfigureBaseFinish } from "./parametric-bom.ts";
+import { assertTechnicalExport } from "./technical-validation.ts";
+import { dictionary } from "../i18n/dictionary.ts";
+import { technicalDictionary } from "../i18n/technical-dictionary.ts";
 
-type FootprintSummary = {
-  depthMm: number;
-  heightMm: number;
-  widthMm: number;
-};
-
-export type { AggregatedBomComponent } from "@/lib/configurator/aggregated-bom";
+export type { AggregatedBomComponent } from "./aggregated-bom.ts";
 
 const PAGE_WIDTH = 595.28;
 const PAGE_HEIGHT = 841.89;
@@ -35,7 +30,7 @@ const CONTENT_RIGHT = 552.76;
 
 export function downloadTechnicalSheetPdf(
   items: ConfiguratorItem[],
-  locale: Locale
+  locale: Locale,
 ) {
   if (items.length === 0) return;
 
@@ -61,7 +56,7 @@ export function downloadTechnicalSheetPdf(
 // Scarica una distinta unica che somma i componenti uguali di tutti i moduli in scena.
 export function downloadAggregatedTechnicalSheetPdf(
   items: ConfiguratorItem[],
-  locale: Locale
+  locale: Locale,
 ) {
   if (items.length === 0) return;
 
@@ -84,25 +79,27 @@ export function downloadAggregatedTechnicalSheetPdf(
   URL.revokeObjectURL(url);
 }
 
-
-function createTechnicalSheetPdf(
+// Genera un documento testabile anche senza browser, rifiutando distinte incoerenti.
+export function createTechnicalSheetPdf(
   items: ConfiguratorItem[],
   locale: Locale,
-  date: Date
+  date: Date,
 ) {
+  assertTechnicalExport(items);
   const pages = createPageStreams(items, locale, date);
 
   return createPdfDocument(pages);
 }
 
 // Genera il PDF compatto della distinta aggregata, separato dal dettaglio per modulo.
-function createAggregatedTechnicalSheetPdf(
+export function createAggregatedTechnicalSheetPdf(
   items: ConfiguratorItem[],
   locale: Locale,
-  date: Date
+  date: Date,
 ) {
+  assertTechnicalExport(items);
   const components = getAggregatedBillOfMaterials(items);
-  const t = dictionary[locale];
+  const t = { ...dictionary[locale], ...technicalDictionary[locale] };
   const pageStreams: string[] = [];
   let currentPage: string[] = [];
   let y = PAGE_HEIGHT - 56.69;
@@ -118,15 +115,40 @@ function createAggregatedTechnicalSheetPdf(
     currentPage.push(pdfText(text, x, textY, "F2", size));
   };
   const addPageHeader = (continuation = false) => {
-    addBoldText(continuation ? t.pdfContinuation : t.pdfAggregateTitle, PAGE_MARGIN_X, y, continuation ? 18 : 22);
+    addBoldText(
+      continuation ? t.pdfContinuation : t.pdfAggregateTitle,
+      PAGE_MARGIN_X,
+      y,
+      continuation ? 18 : 22,
+    );
     y -= 28;
     if (!continuation) {
-      addText(`${locale === "it" ? "Data" : "Date"}: ${formatDate(date, locale)}`, PAGE_MARGIN_X, y, 10);
+      addText(
+        `${locale === "it" ? "Data" : "Date"}: ${formatDate(date, locale)}`,
+        PAGE_MARGIN_X,
+        y,
+        10,
+      );
       y -= 16;
     }
-    addText(`${items.length} ${t.modules} / ${components.length} ${t.pdfTechnicalComponents.toLowerCase()}`, PAGE_MARGIN_X, y, 10);
+    if (!continuation) {
+      wrapPdfLines(t.preliminary, CONTENT_RIGHT - PAGE_MARGIN_X, 8).forEach(
+        (line) => {
+          addText(line, PAGE_MARGIN_X, y, 8);
+          y -= 12;
+        },
+      );
+    }
+    addText(
+      `${items.length} ${t.modules} / ${components.length} ${t.pdfTechnicalComponents.toLowerCase()}`,
+      PAGE_MARGIN_X,
+      y,
+      10,
+    );
     y -= 17;
-    currentPage.push(`${formatNumber(PAGE_MARGIN_X)} ${formatNumber(y)} m ${formatNumber(CONTENT_RIGHT)} ${formatNumber(y)} l S`);
+    currentPage.push(
+      `${formatNumber(PAGE_MARGIN_X)} ${formatNumber(y)} m ${formatNumber(CONTENT_RIGHT)} ${formatNumber(y)} l S`,
+    );
     y -= 24;
   };
 
@@ -134,14 +156,20 @@ function createAggregatedTechnicalSheetPdf(
   addPageHeader();
 
   components.forEach((component) => {
-    if (y - 20 <= PAGE_BOTTOM) {
-      flushPage();
-      y = PAGE_HEIGHT - 56.69;
-      currentPage.push("0.567 w");
-      addPageHeader(true);
-    }
-    addText(formatBomComponentLine(component, t), PAGE_MARGIN_X, y, 8.5);
-    y -= 15;
+    wrapPdfLines(
+      formatBomComponentLine(component, t),
+      CONTENT_RIGHT - PAGE_MARGIN_X,
+      8.5,
+    ).forEach((line) => {
+      if (y - 20 <= PAGE_BOTTOM) {
+        flushPage();
+        y = PAGE_HEIGHT - 56.69;
+        currentPage.push("0.567 w");
+        addPageHeader(true);
+      }
+      addText(line, PAGE_MARGIN_X, y, 8.5);
+      y -= 15;
+    });
   });
 
   flushPage();
@@ -151,10 +179,10 @@ function createAggregatedTechnicalSheetPdf(
 function createPageStreams(
   items: ConfiguratorItem[],
   locale: Locale,
-  date: Date
+  date: Date,
 ) {
-  const footprint = getFootprintSummary(items);
-  const t = dictionary[locale];
+  const footprint = getCompositionFootprint(items);
+  const t = { ...dictionary[locale], ...technicalDictionary[locale] };
   const pageStreams: string[] = [];
   let currentPage: string[] = [];
   let y = PAGE_HEIGHT - 56.69;
@@ -175,7 +203,7 @@ function createPageStreams(
   const addRule = (textY: number) => {
     currentPage.push(
       `${formatNumber(PAGE_MARGIN_X)} ${formatNumber(textY)} m ` +
-        `${formatNumber(CONTENT_RIGHT)} ${formatNumber(textY)} l S`
+        `${formatNumber(CONTENT_RIGHT)} ${formatNumber(textY)} l S`,
     );
   };
 
@@ -192,6 +220,15 @@ function createPageStreams(
     y -= 34;
   };
 
+  // Spezza anche codici lunghi: nessuna specifica deve uscire dal foglio o essere troncata.
+  const addWrappedText = (text: string, x: number, size = 11, bold = false) => {
+    wrapPdfLines(text, CONTENT_RIGHT - x, size).forEach((line) => {
+      ensureSpace(size + 6);
+      (bold ? addBoldText : addText)(line, x, y, size);
+      y -= size + 6;
+    });
+  };
+
   currentPage.push("0.567 w");
   addBoldText(t.pdfTitle, PAGE_MARGIN_X, y, 22);
   y -= 22.68;
@@ -199,12 +236,14 @@ function createPageStreams(
     `${locale === "it" ? "Data" : "Date"}: ${formatDate(date, locale)}`,
     PAGE_MARGIN_X,
     y,
-    10
+    10,
   );
   y -= 11.34;
   addRule(y);
   y -= 36.85;
 
+  addWrappedText(t.preliminary, PAGE_MARGIN_X, 8);
+  y -= 8;
   addBoldText(t.pdfOverallFootprint, PAGE_MARGIN_X, y, 13);
   y -= 22.68;
   addText(`${t.pdfTotalWidth}: ${footprint.widthMm} mm`, PAGE_MARGIN_X, y, 11);
@@ -221,71 +260,60 @@ function createPageStreams(
 
   items.forEach((item, index) => {
     const bomComponents = getItemBillOfMaterials(item);
-
-    ensureSpace(92 + bomComponents.length * 16);
-
     const name = locale === "it" ? item.nameIt : item.nameEn || item.nameIt;
     const variant = getModuleVariantLabel(
       item.productVariantKey || item.variantKey || DEFAULT_MODULE_VARIANT,
-      locale
+      locale,
     );
-    const doorConfigurationSummary = getDoorConfigurationSummary(
-      item.doorConfiguration,
-      locale
+    const door = getDoorConfigurationSummary(
+      getEffectiveDoorConfiguration(item),
+      locale,
     );
-
-    addBoldText(
+    ensureSpace(90);
+    addWrappedText(
       getModuleTitle(
         index + 1,
         name,
         variant,
         hasConfigurableModuleVariants(item.code),
-        t.pdfWith
+        t.pdfWith,
       ),
       PAGE_MARGIN_X,
-      y,
-      11
+      11,
+      true,
     );
-    y -= 17.01;
-    addText(`${t.code}: ${item.code || "-"}`, PAGE_MARGIN_X + 14.17, y, 11);
-    y -= 17.01;
-    addText(
-      `${t.pdfDimensions}: L ${item.widthMm} x A ${item.heightMm} x P ${item.depthMm} mm`,
+    addWrappedText(`${t.code}: ${item.code || "-"}`, PAGE_MARGIN_X + 14.17);
+    addWrappedText(
+      `${t.nominalDimensions}: L ${item.widthMm} x A ${item.heightMm} x P ${item.depthMm} mm`,
       PAGE_MARGIN_X + 14.17,
-      y,
-      11
     );
-    y -= 17.01;
-
-    if (doorConfigurationSummary.length > 0) {
-      addText(
-        `${t.pdfDoorConfiguration}: ${doorConfigurationSummary.join(" - ")}`,
+    if (canConfigureBaseFinish(item.code))
+      addWrappedText(
+        `${item.baseFinishConfiguration?.hasTop ? t.topIncluded : t.topExcluded} - ${door[0] || t.noDoors}`,
         PAGE_MARGIN_X + 14.17,
-        y,
-        9.5
+        9,
       );
-      y -= 20;
-    } else {
-      y -= 6.99;
+    if (door.length) {
+      addWrappedText(
+        `${t.pdfDoorConfiguration}: ${door.join(" - ")}`,
+        PAGE_MARGIN_X + 14.17,
+        9.5,
+      );
+      addWrappedText(
+        canConfigureBaseFinish(item.code) ? t.doorNotes : t.documentaryDoors,
+        PAGE_MARGIN_X + 14.17,
+        8,
+      );
     }
-
-    if (bomComponents.length > 0) {
-      addBoldText(t.pdfTechnicalComponents, PAGE_MARGIN_X + 14.17, y, 10);
-      y -= 15.59;
-
-      bomComponents.forEach((component) => {
-        ensureSpace(20);
-        addText(
-          formatBomComponentLine(component, t),
-          PAGE_MARGIN_X + 28.35,
-          y,
-          8.5
-        );
-        y -= 14.17;
-      });
-
-      y -= 6;
-    }
+    addWrappedText(t.pdfTechnicalComponents, PAGE_MARGIN_X + 14.17, 10, true);
+    bomComponents.forEach((component) =>
+      addWrappedText(
+        formatBomComponentLine(component, t),
+        PAGE_MARGIN_X + 28.35,
+        8.5,
+      ),
+    );
+    y -= 10;
   });
 
   flushPage();
@@ -299,7 +327,7 @@ function getModuleTitle(
   name: string,
   variant: string,
   variantVisible: boolean,
-  withLabel: string
+  withLabel: string,
 ) {
   return variantVisible
     ? `${index}. ${name} ${withLabel} ${variant}`
@@ -309,9 +337,9 @@ function getModuleTitle(
 // Formatta una riga distinta in una forma compatta adatta al PDF tecnico.
 function formatBomComponentLine(
   component: ModuleBomComponent,
-  t: Record<string, string>
+  t: Record<string, string>,
 ) {
-  const quantity = component.quantity ?? "-";
+  const quantity = getComponentQuantity(component) ?? t.quantityPending;
   const optional = component.optional ? ` (${t.pdfOptional})` : "";
   const dimensions = [
     ["L", component.widthMm],
@@ -319,7 +347,9 @@ function formatBomComponentLine(
     ["P", component.depthMm],
     [t.pdfThickness, component.thicknessMm],
   ]
-    .filter(([, value]) => value !== undefined && value !== null && value !== "")
+    .filter(
+      ([, value]) => value !== undefined && value !== null && value !== "",
+    )
     .map(([label, value]) => `${label} ${formatBomValue(value)}`)
     .join(" / ");
 
@@ -328,38 +358,28 @@ function formatBomComponentLine(
   }${optional}${dimensions ? ` | ${dimensions}` : ""}`;
 }
 
-
 // Normalizza numeri e formule testuali della legenda prima di scriverli nel PDF.
 function formatBomValue(value: ModuleBomComponent[keyof ModuleBomComponent]) {
   return typeof value === "number" ? `${value}` : String(value);
 }
 
-function getFootprintSummary(items: ConfiguratorItem[]): FootprintSummary {
-  const boxes = items.map((item) => {
-    const footprint = getItemFootprintMm(item);
-    const centerX = item.position[0] * CONFIGURATOR_SCENE_SCALE;
-    const centerZ = item.position[2] * CONFIGURATOR_SCENE_SCALE;
-
-    return {
-      heightMm: item.heightMm,
-      maxX: centerX + footprint.widthMm / 2,
-      maxZ: centerZ + footprint.depthMm / 2,
-      minX: centerX - footprint.widthMm / 2,
-      minZ: centerZ - footprint.depthMm / 2,
-    };
+// Usa una larghezza conservativa per Helvetica ed evita tagli anche su parole o codici senza spazi.
+function wrapPdfLines(text: string, width: number, size: number) {
+  const limit = Math.max(1, Math.floor(width / size));
+  const words = text
+    .split(/\s+/)
+    .flatMap((word) => word.match(new RegExp(`.{1,${limit}}`, "gu")) || []);
+  const lines: string[] = [];
+  let line = "";
+  words.forEach((word) => {
+    if (line && line.length + 1 + word.length > limit) {
+      lines.push(line);
+      line = "";
+    }
+    line = line ? `${line} ${word}` : word;
   });
-
-  return {
-    depthMm: Math.round(
-      Math.max(...boxes.map((box) => box.maxZ)) -
-        Math.min(...boxes.map((box) => box.minZ))
-    ),
-    heightMm: Math.round(Math.max(...boxes.map((box) => box.heightMm))),
-    widthMm: Math.round(
-      Math.max(...boxes.map((box) => box.maxX)) -
-        Math.min(...boxes.map((box) => box.minX))
-    ),
-  };
+  if (line) lines.push(line);
+  return lines;
 }
 
 function createPdfDocument(pageStreams: string[]) {
@@ -368,10 +388,9 @@ function createPdfDocument(pageStreams: string[]) {
   const pageIds = pageStreams.map((_, index) => 5 + index * 2);
 
   objects[1] = "<< /Type /Catalog /Pages 2 0 R /PageLayout /OneColumn >>";
-  objects[2] =
-    `<< /Type /Pages /Kids [${pageIds
-      .map((pageId) => `${pageId} 0 R`)
-      .join(" ")}] /Count ${pageStreams.length} >>`;
+  objects[2] = `<< /Type /Pages /Kids [${pageIds
+    .map((pageId) => `${pageId} 0 R`)
+    .join(" ")}] /Count ${pageStreams.length} >>`;
   objects[3] =
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>";
   objects[4] =
@@ -415,7 +434,7 @@ function pdfText(
   x: number,
   y: number,
   font: "F1" | "F2",
-  size: number
+  size: number,
 ) {
   return (
     `BT /${font} ${size} Tf ${formatNumber(x)} ${formatNumber(y)} Td ` +
@@ -437,7 +456,8 @@ function toPdfSafeText(text: string) {
 }
 
 function formatDate(date: Date, locale: Locale) {
-  const localeCode = locale === "it" ? "it-IT" : locale === "fr" ? "fr-FR" : "en-GB";
+  const localeCode =
+    locale === "it" ? "it-IT" : locale === "fr" ? "fr-FR" : "en-GB";
 
   return date.toLocaleDateString(localeCode);
 }

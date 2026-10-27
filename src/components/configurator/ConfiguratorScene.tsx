@@ -21,11 +21,7 @@ import {
   CONFIGURATOR_GRID_SIZE,
   useConfiguratorStore,
 } from "@/store/configurator-store";
-import {
-  CONFIGURATOR_SCENE_SCALE,
-  getItemFootprintScene,
-  getItemFootprintMm,
-} from "@/store/configurator-calculations";
+import { CONFIGURATOR_SCENE_SCALE } from "@/store/configurator-calculations";
 import {
   ConfiguratorItem,
   ProductVariantKey,
@@ -35,6 +31,10 @@ import {
   SCENE_MODE_OPTIONS,
   SceneMode,
 } from "@/types/configurator";
+import {
+  getCompositionFootprint,
+  getItemInstalledBounds,
+} from "@/lib/configurator/module-envelope";
 import { dictionary } from "@/lib/i18n/dictionary";
 import { hasSceneCompositionChanged } from "@/lib/configurator/camera-focus";
 
@@ -86,7 +86,7 @@ function SceneContent({
 }) {
   const items = useConfiguratorStore((state) => state.items);
   const addProductAtPosition = useConfiguratorStore(
-    (state) => state.addProductAtPosition
+    (state) => state.addProductAtPosition,
   );
   const selectItem = useConfiguratorStore((state) => state.selectItem);
   const updatePosition = useConfiguratorStore((state) => state.updatePosition);
@@ -99,7 +99,7 @@ function SceneContent({
   const { camera, gl } = useThree();
   const groundPlane = useMemo(
     () => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
-    []
+    [],
   );
   const planePointRef = useRef(new THREE.Vector3());
   const pointerRef = useRef(new THREE.Vector2());
@@ -113,7 +113,7 @@ function SceneContent({
     const distance = camera.position.distanceTo(target);
 
     onZoomOutLimitChange(
-      distance >= maxCameraDistance - CAMERA_DISTANCE_LIMIT_EPSILON
+      distance >= maxCameraDistance - CAMERA_DISTANCE_LIMIT_EPSILON,
     );
   }, [camera.position, maxCameraDistance, onZoomOutLimitChange]);
 
@@ -123,17 +123,17 @@ function SceneContent({
 
       pointerRef.current.set(
         ((clientX - bounds.left) / bounds.width) * 2 - 1,
-        -((clientY - bounds.top) / bounds.height) * 2 + 1
+        -((clientY - bounds.top) / bounds.height) * 2 + 1,
       );
 
       raycasterRef.current.setFromCamera(pointerRef.current, camera);
 
       return raycasterRef.current.ray.intersectPlane(
         groundPlane,
-        planePointRef.current
+        planePointRef.current,
       );
     },
-    [camera, gl.domElement, groundPlane]
+    [camera, gl.domElement, groundPlane],
   );
 
   const moveDraggedItem = useCallback(
@@ -145,10 +145,10 @@ function SceneContent({
       updatePosition(
         currentDrag.itemId,
         [point.x + currentDrag.offsetX, 0, point.z + currentDrag.offsetZ],
-        { recordHistory: false }
+        { recordHistory: false },
       );
     },
-    [updatePosition]
+    [updatePosition],
   );
 
   const stopDragging = useCallback(
@@ -156,13 +156,14 @@ function SceneContent({
       const currentDrag = dragRef.current;
 
       if (!currentDrag) return;
-      if (pointerId !== undefined && pointerId !== currentDrag.pointerId) return;
+      if (pointerId !== undefined && pointerId !== currentDrag.pointerId)
+        return;
 
       gl.domElement.releasePointerCapture?.(currentDrag.pointerId);
       dragRef.current = null;
       setDragState(null);
     },
-    [gl.domElement]
+    [gl.domElement],
   );
 
   useEffect(() => {
@@ -195,11 +196,11 @@ function SceneContent({
     if (!catalogDropRequest) return;
 
     const product = products.find(
-      (currentProduct) => currentProduct.id === catalogDropRequest.productId
+      (currentProduct) => currentProduct.id === catalogDropRequest.productId,
     );
     const point = getGroundPoint(
       catalogDropRequest.clientX,
-      catalogDropRequest.clientY
+      catalogDropRequest.clientY,
     );
 
     if (!product || !point) return;
@@ -207,7 +208,7 @@ function SceneContent({
     addProductAtPosition(
       product,
       [point.x, 0, point.z],
-      getVariantProducts(products, catalogDropRequest.variantProductIds)
+      getVariantProducts(products, catalogDropRequest.variantProductIds),
     );
   }, [addProductAtPosition, catalogDropRequest, getGroundPoint, products]);
 
@@ -224,7 +225,7 @@ function SceneContent({
       const nextDistance = THREE.MathUtils.clamp(
         cameraOffset.length() * zoomFactor,
         CAMERA_MIN_DISTANCE,
-        maxCameraDistance
+        maxCameraDistance,
       );
 
       cameraOffset.setLength(nextDistance);
@@ -239,7 +240,13 @@ function SceneContent({
     camera.updateProjectionMatrix();
     controlsRef.current?.update();
     updateZoomOutLimit();
-  }, [camera, maxCameraDistance, updateZoomOutLimit, verticalAxis, viewCommand]);
+  }, [
+    camera,
+    maxCameraDistance,
+    updateZoomOutLimit,
+    verticalAxis,
+    viewCommand,
+  ]);
 
   useEffect(() => {
     const target = controlsRef.current?.target || new THREE.Vector3(0, 0, 0);
@@ -269,7 +276,7 @@ function SceneContent({
     const currentItemIds = items.map((item) => item.id);
     const shouldFrameComposition = hasSceneCompositionChanged(
       previousSceneItemIdsRef.current,
-      currentItemIds
+      currentItemIds,
     );
     previousSceneItemIdsRef.current = currentItemIds;
 
@@ -283,7 +290,7 @@ function SceneContent({
     const nextDistance = THREE.MathUtils.clamp(
       Math.max(cameraOffset.length(), sceneFocus.radius * 2.1 + 2.4),
       CAMERA_MIN_DISTANCE,
-      maxCameraDistance
+      maxCameraDistance,
     );
 
     cameraOffset.setLength(nextDistance);
@@ -297,7 +304,7 @@ function SceneContent({
 
   const handleDragStart = (
     item: ConfiguratorItem,
-    event: ThreeEvent<PointerEvent>
+    event: ThreeEvent<PointerEvent>,
   ) => {
     commitHistory();
     const point =
@@ -340,7 +347,9 @@ function SceneContent({
         fadeStrength={1}
       />
 
-      {sceneMode !== "open" ? <SceneAlignmentGuide sceneMode={sceneMode} /> : null}
+      {sceneMode !== "open" ? (
+        <SceneAlignmentGuide sceneMode={sceneMode} />
+      ) : null}
 
       <mesh
         position={[0, -0.01, 0]}
@@ -465,11 +474,13 @@ export function ConfiguratorScene({
   const items = useConfiguratorStore((state) => state.items);
   const sceneMode = useConfiguratorStore((state) => state.sceneMode);
   const settingsHydrated = useConfiguratorStore(
-    (state) => state.settingsHydrated
+    (state) => state.settingsHydrated,
   );
-  const hydrateSettings = useConfiguratorStore((state) => state.hydrateSettings);
+  const hydrateSettings = useConfiguratorStore(
+    (state) => state.hydrateSettings,
+  );
   const showSceneDataOnStart = useConfiguratorStore(
-    (state) => state.settings.showSceneDataOnStart
+    (state) => state.settings.showSceneDataOnStart,
   );
   const selectedItemId = useConfiguratorStore((state) => state.selectedItemId);
   const setSceneMode = useConfiguratorStore((state) => state.setSceneMode);
@@ -497,7 +508,8 @@ export function ConfiguratorScene({
       : selectedItem.nameEn || selectedItem.nameIt
     : "";
   const footprintSummary = useMemo(() => getFootprintSummary(items), [items]);
-  const showFootprintSummary = sceneMode !== "open" && footprintSummary.count > 0;
+  const showFootprintSummary =
+    sceneMode !== "open" && footprintSummary.count > 0;
 
   useEffect(() => {
     hydrateSettings();
@@ -517,7 +529,7 @@ export function ConfiguratorScene({
   // Traduce il drop HTML del catalogo in una richiesta che la scena 3D converte in coordinate mondo.
   function handleCatalogDrop(event: React.DragEvent<HTMLElement>) {
     const productId = event.dataTransfer.getData(
-      "application/x-configurator-product-id"
+      "application/x-configurator-product-id",
     );
 
     if (!productId) return;
@@ -531,8 +543,8 @@ export function ConfiguratorScene({
       productId,
       variantProductIds: readVariantProductIds(
         event.dataTransfer.getData(
-          "application/x-configurator-product-variant-ids"
-        )
+          "application/x-configurator-product-variant-ids",
+        ),
       ),
     });
   }
@@ -543,7 +555,7 @@ export function ConfiguratorScene({
       onDragOver={(event) => {
         if (
           event.dataTransfer.types.includes(
-            "application/x-configurator-product-id"
+            "application/x-configurator-product-id",
           )
         ) {
           event.preventDefault();
@@ -656,14 +668,22 @@ export function ConfiguratorScene({
       >
         <MapControlButton
           disabled={!canUndo}
-          label={locale === "it" ? "Annulla" : locale === "fr" ? "Annuler" : "Undo"}
+          label={
+            locale === "it" ? "Annulla" : locale === "fr" ? "Annuler" : "Undo"
+          }
           onClick={undo}
         >
           <Undo2 size={18} aria-hidden="true" />
         </MapControlButton>
         <MapControlButton
           disabled={!canRedo}
-          label={locale === "it" ? "Ripristina" : locale === "fr" ? "Rétablir" : "Redo"}
+          label={
+            locale === "it"
+              ? "Ripristina"
+              : locale === "fr"
+                ? "Rétablir"
+                : "Redo"
+          }
           onClick={redo}
         >
           <Redo2 size={18} aria-hidden="true" />
@@ -732,10 +752,13 @@ export function ConfiguratorScene({
 
 // Ricostruisce le varianti del catalogo dal payload drag senza accettare chiavi o valori non validi.
 function readVariantProductIds(
-  serializedVariantProductIds: string
+  serializedVariantProductIds: string,
 ): Partial<Record<ProductVariantKey, string>> {
   try {
-    const parsed = JSON.parse(serializedVariantProductIds) as Record<string, unknown>;
+    const parsed = JSON.parse(serializedVariantProductIds) as Record<
+      string,
+      unknown
+    >;
     const result: Partial<Record<ProductVariantKey, string>> = {};
     const validKeys = PRODUCT_VARIANT_OPTIONS.map((option) => option.key);
 
@@ -752,7 +775,7 @@ function readVariantProductIds(
 // Converte gli identificativi trascinati nei record completi che lo store usa per cambiare variante.
 function getVariantProducts(
   products: Product[],
-  variantProductIds: Partial<Record<ProductVariantKey, string>>
+  variantProductIds: Partial<Record<ProductVariantKey, string>>,
 ): ProductVariantProducts {
   return Object.fromEntries(
     Object.entries(variantProductIds)
@@ -760,7 +783,9 @@ function getVariantProducts(
         key,
         products.find((product) => product.id === productId),
       ])
-      .filter((entry): entry is [ProductVariantKey, Product] => Boolean(entry[1]))
+      .filter((entry): entry is [ProductVariantKey, Product] =>
+        Boolean(entry[1]),
+      ),
   ) as ProductVariantProducts;
 }
 
@@ -775,7 +800,7 @@ function getMaxCameraDistance(items: ConfiguratorItem[]) {
   return THREE.MathUtils.clamp(
     largestFootprintSceneUnits * 2.2 + 5.5,
     CAMERA_DEFAULT_MAX_DISTANCE,
-    CAMERA_MAX_DISTANCE_CAP
+    CAMERA_MAX_DISTANCE_CAP,
   );
 }
 
@@ -786,44 +811,9 @@ type FootprintSummary = {
   widthMm: number;
 };
 
+// Usa gli stessi ingombri installati del PDF, incluse quota da terra e opzioni base.
 function getFootprintSummary(items: ConfiguratorItem[]): FootprintSummary {
-  if (items.length === 0) {
-    return {
-      count: 0,
-      depthMm: 0,
-      heightMm: 0,
-      widthMm: 0,
-    };
-  }
-
-  const boxes = items.map((item) => {
-    const footprint = getItemFootprintMm(item);
-    const centerX = item.position[0] * CONFIGURATOR_SCENE_SCALE;
-    const centerZ = item.position[2] * CONFIGURATOR_SCENE_SCALE;
-
-    return {
-      heightMm: Math.round(
-        item.position[1] * CONFIGURATOR_SCENE_SCALE + item.heightMm
-      ),
-      maxX: centerX + footprint.widthMm / 2,
-      maxZ: centerZ + footprint.depthMm / 2,
-      minX: centerX - footprint.widthMm / 2,
-      minZ: centerZ - footprint.depthMm / 2,
-    };
-  });
-
-  return {
-    count: items.length,
-    depthMm: Math.round(
-      Math.max(...boxes.map((box) => box.maxZ)) -
-        Math.min(...boxes.map((box) => box.minZ))
-    ),
-    heightMm: Math.round(Math.max(...boxes.map((box) => box.heightMm))),
-    widthMm: Math.round(
-      Math.max(...boxes.map((box) => box.maxX)) -
-        Math.min(...boxes.map((box) => box.minX))
-    ),
-  };
+  return getCompositionFootprint(items);
 }
 
 // Calcola il centro orbitale della composizione completa, includendo moduli pensili in quota.
@@ -831,19 +821,19 @@ function getSceneFocus(items: ConfiguratorItem[]) {
   if (items.length === 0) return null;
 
   const boxes = items.map((item) => {
-    const footprint = getItemFootprintScene(item);
-    const centerX = item.position[0];
-    const centerY = item.position[1] + item.heightMm / CONFIGURATOR_SCENE_SCALE / 2;
-    const centerZ = item.position[2];
-    const halfHeight = item.heightMm / CONFIGURATOR_SCENE_SCALE / 2;
-
-    return {
-      maxX: centerX + footprint.width / 2,
-      maxY: centerY + halfHeight,
-      maxZ: centerZ + footprint.depth / 2,
-      minX: centerX - footprint.width / 2,
-      minY: centerY - halfHeight,
-      minZ: centerZ - footprint.depth / 2,
+    const bounds = getItemInstalledBounds(item);
+    return Object.fromEntries(
+      Object.entries(bounds).map(([key, value]) => [
+        key,
+        value / CONFIGURATOR_SCENE_SCALE,
+      ]),
+    ) as {
+      minX: number;
+      maxX: number;
+      minY: number;
+      maxY: number;
+      minZ: number;
+      maxZ: number;
     };
   });
   const minX = Math.min(...boxes.map((box) => box.minX));
@@ -860,7 +850,7 @@ function getSceneFocus(items: ConfiguratorItem[]) {
     center: new THREE.Vector3(
       (minX + maxX) / 2,
       Math.max(0.45, (minY + maxY) / 2),
-      (minZ + maxZ) / 2
+      (minZ + maxZ) / 2,
     ),
     radius: Math.max(width, height, depth),
   };

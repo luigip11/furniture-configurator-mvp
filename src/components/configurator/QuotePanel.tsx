@@ -1,5 +1,9 @@
 "use client";
 
+import { getEffectiveDoorConfiguration } from "@/lib/configurator/module-capabilities";
+import { canConfigureBaseFinish } from "@/lib/configurator/parametric-bom";
+import { getTechnicalIssue } from "@/lib/configurator/technical-validation";
+import { technicalDictionary } from "@/lib/i18n/technical-dictionary";
 import { useMemo } from "react";
 import { Download, List, Trash2 } from "lucide-react";
 import { useConfiguratorStore } from "@/store/configurator-store";
@@ -27,6 +31,8 @@ export function QuotePanel() {
   const selectItem = useConfiguratorStore((state) => state.selectItem);
 
   const t = dictionary[locale];
+  const technical = technicalDictionary[locale];
+  const exportBlocked = items.some((item) => getTechnicalIssue(item));
 
   const total = useMemo(() => {
     return items.reduce((sum, item) => sum + Number(item.price || 0), 0);
@@ -51,6 +57,7 @@ export function QuotePanel() {
               type="button"
               aria-label={t.downloadTechnicalSheet}
               title={t.downloadTechnicalSheet}
+              disabled={exportBlocked}
               onClick={() => downloadTechnicalSheetPdf(items, locale)}
               className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-gray-100 text-gray-700 transition hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
             >
@@ -60,6 +67,7 @@ export function QuotePanel() {
               type="button"
               aria-label={t.downloadAggregateTechnicalSheet}
               title={t.downloadAggregateTechnicalSheet}
+              disabled={exportBlocked}
               onClick={() => downloadAggregatedTechnicalSheetPdf(items, locale)}
               className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-gray-100 text-gray-700 transition hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
             >
@@ -69,6 +77,14 @@ export function QuotePanel() {
         ) : null}
       </div>
 
+      {exportBlocked ? (
+        <p
+          role="alert"
+          className="mb-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-900"
+        >
+          {technical.exportBlocked}
+        </p>
+      ) : null}
       {items.length === 0 ? (
         <p className="text-sm text-gray-500">{t.noItems}</p>
       ) : (
@@ -77,12 +93,14 @@ export function QuotePanel() {
             const name =
               locale === "it" ? item.nameIt : item.nameEn || item.nameIt;
             const variantLabel = getModuleVariantLabel(
-              item.productVariantKey || item.variantKey || DEFAULT_MODULE_VARIANT,
-              locale
+              item.productVariantKey ||
+                item.variantKey ||
+                DEFAULT_MODULE_VARIANT,
+              locale,
             );
             const doorConfigurationSummary = getDoorConfigurationSummary(
-              item.doorConfiguration,
-              locale
+              getEffectiveDoorConfiguration(item),
+              locale,
             );
             const bomCount = getItemBillOfMaterials(item).length;
 
@@ -108,7 +126,9 @@ export function QuotePanel() {
                   </p>
                   {item.code ? (
                     <p className="mt-1 truncate text-xs" title={item.code}>
-                      <span className="font-semibold text-black">{t.code}: </span>
+                      <span className="font-semibold text-black">
+                        {t.code}:{" "}
+                      </span>
                       <span className="text-gray-500">{item.code}</span>
                     </p>
                   ) : null}
@@ -130,9 +150,17 @@ export function QuotePanel() {
                       </span>
                     </p>
                   ) : null}
+                  {canConfigureBaseFinish(item.code) ? (
+                    <p className="mt-1 text-xs text-gray-600">
+                      {item.baseFinishConfiguration?.hasTop
+                        ? technical.topIncluded
+                        : technical.topExcluded}{" "}
+                      · {doorConfigurationSummary[0] || technical.noDoors}
+                    </p>
+                  ) : null}
                   <p className="mt-1 text-xs">
                     <span className="font-semibold text-black">
-                      {t.measurements}:{" "}
+                      {technical.nominalDimensions}:{" "}
                     </span>
                     <span className="text-gray-500">
                       L {item.widthMm} × A {item.heightMm} × P {item.depthMm} mm

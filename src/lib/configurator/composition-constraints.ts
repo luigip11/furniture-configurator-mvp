@@ -1,4 +1,6 @@
 // Vincoli geometrici condivisi da inserimento, proprietà, rotazioni e movimento.
+import { hasSupportedDimensions } from "./module-capabilities.ts";
+import { getItemInstalledBounds } from "./module-envelope.ts";
 import type {
   ConfiguratorItem,
   ConfiguratorSettings,
@@ -15,6 +17,8 @@ import {
 } from "../../store/configurator-calculations.ts";
 
 export type ConfigurationError =
+  | "dimensionsLocked"
+  | "unsupportedFinish"
   | "invalidDimensions"
   | "invalidCoordinates"
   | "capacityExceeded"
@@ -64,19 +68,16 @@ export function itemsOverlap(
   first: ConfiguratorItem,
   second: ConfiguratorItem,
 ) {
-  const a = getItemFootprintScene(first);
-  const b = getItemFootprintScene(second);
+  const a = getItemInstalledBounds(first);
+  const b = getItemInstalledBounds(second);
+  const epsilonMm = EPSILON * CONFIGURATOR_SCENE_SCALE;
   return (
-    Math.abs(first.position[0] - second.position[0]) <
-      (a.width + b.width) / 2 - EPSILON &&
-    Math.abs(first.position[2] - second.position[2]) <
-      (a.depth + b.depth) / 2 - EPSILON &&
-    first.position[1] <
-      second.position[1] +
-        second.heightMm / CONFIGURATOR_SCENE_SCALE -
-        EPSILON &&
-    second.position[1] <
-      first.position[1] + first.heightMm / CONFIGURATOR_SCENE_SCALE - EPSILON
+    a.minX < b.maxX - epsilonMm &&
+    a.maxX > b.minX + epsilonMm &&
+    a.minZ < b.maxZ - epsilonMm &&
+    a.maxZ > b.minZ + epsilonMm &&
+    a.minY < b.maxY - epsilonMm &&
+    a.maxY > b.minY + epsilonMm
   );
 }
 
@@ -84,9 +85,9 @@ export function itemsOverlap(
 export function isInsideScene(item: ConfiguratorItem) {
   const size = getItemFootprintScene(item);
   return (
-    Math.abs(item.position[0]) + size.width / 2 <=
+    Math.abs(item.position[0] + size.offsetX) + size.width / 2 <=
       CONFIGURATOR_GRID_HALF_SIZE + EPSILON &&
-    Math.abs(item.position[2]) + size.depth / 2 <=
+    Math.abs(item.position[2] + size.offsetZ) + size.depth / 2 <=
       CONFIGURATOR_GRID_HALF_SIZE + EPSILON
   );
 }
@@ -99,6 +100,8 @@ export function resolveComposition(
 ): CompositionResult {
   if (items.some((item) => !hasValidModuleDimensions(item)))
     return { error: "invalidDimensions" };
+  if (items.some((item) => !hasSupportedDimensions(item)))
+    return { error: "dimensionsLocked" };
   if (
     items.some(
       (item) =>

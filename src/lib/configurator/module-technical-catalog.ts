@@ -5,6 +5,7 @@ import {
 import type { ModuleVariantKey } from "../../types/configurator.ts";
 import { GENERATED_TECHNICAL_CATALOG } from "./generated-technical-catalog.ts";
 import { getParametricBillOfMaterials } from "./parametric-bom.ts";
+import { hasSupportedDimensions } from "./module-capabilities.ts";
 import type { ConfiguratorItem } from "../../types/configurator.ts";
 
 // Catalogo tecnico derivato dalla legenda allegata: collega prodotti, varianti e distinta base.
@@ -479,6 +480,7 @@ export function getModuleBillOfMaterials(
 
 // Restituisce la distinta del singolo elemento, ricalcolandola quando esistono formule tecniche note.
 export function getItemBillOfMaterials(item: ConfiguratorItem) {
+  if (!hasSupportedDimensions(item)) return [];
   return (
     getParametricBillOfMaterials(item) ||
     getModuleBillOfMaterials(

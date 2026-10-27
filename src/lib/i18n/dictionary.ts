@@ -1,4 +1,4 @@
-import { Locale } from "@/types/configurator";
+import type { Locale } from "../../types/configurator.ts";
 
 export const dictionary = {
   it: {

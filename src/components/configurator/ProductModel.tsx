@@ -10,11 +10,10 @@ import {
 import { Edges, Html, Line, useGLTF } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
-import {
-  getGltfTransformPreset,
-  getIndependentModelScale,
-  getProportionalModelScale,
-} from "@/lib/configurator/gltf-transform";
+import { fitGltfScene } from "@/lib/configurator/gltf-scene-fit";
+import { getParametricPreviewPanels } from "@/lib/configurator/parametric-preview";
+import { getModuleExtras } from "@/lib/configurator/module-envelope";
+import { ParametricProductBody } from "./ParametricProductBody";
 import { useConfiguratorStore } from "@/store/configurator-store";
 import {
   ConfiguratorItem,
@@ -28,7 +27,7 @@ type ProductModelProps = {
   labelsVisible: boolean;
   onDragStart: (
     item: ConfiguratorItem,
-    event: ThreeEvent<PointerEvent>
+    event: ThreeEvent<PointerEvent>,
   ) => void;
 };
 
@@ -60,7 +59,7 @@ type DimensionDirection = "x+" | "x-" | "y+" | "y-" | "z+" | "z-";
 
 type DimensionPoint = [number, number, number];
 
-const SCENE_SCALE = 700;
+import { CONFIGURATOR_SCENE_SCALE as SCENE_SCALE } from "@/lib/configurator/scene-scale";
 const PANEL_THICKNESS = 0.04;
 const EXTERIOR_COLOR = "#d8d3c7";
 const INTERIOR_COLOR = "#eee8dc";
@@ -81,10 +80,7 @@ class ProductModelErrorBoundary extends Component<
   }
 
   componentDidUpdate(previousProps: ProductModelErrorBoundaryProps) {
-    if (
-      previousProps.resetKey !== this.props.resetKey &&
-      this.state.hasError
-    ) {
+    if (previousProps.resetKey !== this.props.resetKey && this.state.hasError) {
       this.setState({ hasError: false });
     }
   }
@@ -121,7 +117,16 @@ export function ProductModel({
   const height = item.heightMm / SCENE_SCALE;
   const depth = item.depthMm / SCENE_SCALE;
   const edgeColor = isSelected ? SELECTED_EDGE_COLOR : EDGE_COLOR;
-  const fallbackModel = <ParametricModule item={item} edgeColor={edgeColor} />;
+  const previewPanels = getParametricPreviewPanels(item);
+  const fallbackModel = previewPanels ? (
+    <ParametricProductBody panels={previewPanels} edgeColor={edgeColor} />
+  ) : (
+    <ParametricModule item={item} edgeColor={edgeColor} />
+  );
+  const extras = getModuleExtras(item);
+  const installedHeight = height + extras.topMm / SCENE_SCALE;
+  const installedDepth = depth + extras.frontMm / SCENE_SCALE;
+  const frontOffset = extras.frontMm / SCENE_SCALE / 2;
 
   const labelClassName = isSelected
     ? "whitespace-nowrap rounded-md border border-blue-300/70 bg-blue-600/75 px-2 py-1 text-center text-[11px] font-semibold text-white shadow-sm backdrop-blur-sm"
@@ -141,7 +146,7 @@ export function ProductModel({
         <Html
           center
           distanceFactor={9}
-          position={[0, height + 0.34, 0]}
+          position={[0, installedHeight + 0.34, 0]}
           style={{ pointerEvents: "none" }}
           zIndexRange={[1, 0]}
         >
@@ -150,20 +155,24 @@ export function ProductModel({
       ) : null}
 
       {labelsVisible ? (
-        <ModuleDimensions
-          depth={depth}
-          depthMm={item.depthMm}
-          height={height}
-          heightMm={item.heightMm}
-          isSelected={isSelected}
-          width={width}
-          widthMm={item.widthMm}
-        />
+        <group position={[0, 0, frontOffset]}>
+          <ModuleDimensions
+            depth={installedDepth}
+            depthMm={item.depthMm + extras.frontMm}
+            height={installedHeight}
+            heightMm={item.heightMm + extras.topMm}
+            isSelected={isSelected}
+            width={width}
+            widthMm={item.widthMm}
+          />
+        </group>
       ) : null}
 
       {isSelected ? (
-        <mesh position={[0, height / 2, 0]}>
-          <boxGeometry args={[width + 0.08, height + 0.08, depth + 0.08]} />
+        <mesh position={[0, installedHeight / 2, frontOffset]}>
+          <boxGeometry
+            args={[width + 0.08, installedHeight + 0.08, installedDepth + 0.08]}
+          />
           <meshBasicMaterial
             color={SELECTED_EDGE_COLOR}
             transparent
@@ -174,8 +183,8 @@ export function ProductModel({
       ) : null}
 
       {/* Hitbox trasparente: resta stabile anche quando il GLB ha geometrie complesse. */}
-      <mesh position={[0, height / 2, 0]}>
-        <boxGeometry args={[width, height, depth]} />
+      <mesh position={[0, installedHeight / 2, frontOffset]}>
+        <boxGeometry args={[width, installedHeight, installedDepth]} />
         <meshStandardMaterial
           color={item.color || EXTERIOR_COLOR}
           transparent
@@ -184,7 +193,7 @@ export function ProductModel({
         />
       </mesh>
 
-      {modelUrl ? (
+      {modelUrl && !previewPanels ? (
         <ProductModelErrorBoundary fallback={fallbackModel} resetKey={modelUrl}>
           <Suspense fallback={fallbackModel}>
             <GltfProductBody item={item} modelUrl={modelUrl} />
@@ -204,87 +213,19 @@ export function ProductModel({
   );
 }
 
-// Carica il GLB e lo adatta al bounding box dimensionale del prodotto.
+// Mantiene il modello originale solo per i prodotti a quote fisse; il fitting rispetta il volume nominale.
 function GltfProductBody({ item, modelUrl }: GltfProductBodyProps) {
   const gltf = useGLTF(modelUrl);
-  const targetSize = useMemo(
+  const fittedModel = useMemo(
     () =>
-      new THREE.Vector3(
-        item.widthMm / SCENE_SCALE,
-        item.heightMm / SCENE_SCALE,
-        item.depthMm / SCENE_SCALE
-      ),
-    [item.depthMm, item.heightMm, item.widthMm]
+      fitGltfScene(gltf.scene, item.code, {
+        width: item.widthMm / SCENE_SCALE,
+        height: item.heightMm / SCENE_SCALE,
+        depth: item.depthMm / SCENE_SCALE,
+      }),
+    [gltf.scene, item.code, item.widthMm, item.heightMm, item.depthMm],
   );
-
-  const fittedModel = useMemo(() => {
-    const scene = gltf.scene.clone(true);
-    const preset = getGltfTransformPreset(item.code);
-
-    // Normalizza prima l'asse verticale: il bounding box deve riflettere la scena finale.
-    scene.rotation.x = preset.rotationX;
-    scene.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(scene);
-    const size = box.getSize(new THREE.Vector3());
-    const center = box.getCenter(new THREE.Vector3());
-    const safeSize = new THREE.Vector3(
-      size.x || 1,
-      size.y || 1,
-      size.z || 1
-    );
-    const sourceSize = {
-      width: safeSize.x,
-      height: safeSize.y,
-      depth: safeSize.z,
-    };
-    const targetDimensions = {
-      width: targetSize.x,
-      height: targetSize.y,
-      depth: targetSize.z,
-    };
-    const scale =
-      preset.scaleMode === "independent"
-        ? getIndependentModelScale(sourceSize, targetDimensions)
-        : (() => {
-            const uniformScale = getProportionalModelScale(
-              sourceSize,
-              targetDimensions
-            );
-
-            return {
-              width: uniformScale,
-              height: uniformScale,
-              depth: uniformScale,
-            };
-          })();
-    const scaleVector = new THREE.Vector3(
-      scale.width,
-      scale.height,
-      scale.depth
-    );
-    const position = new THREE.Vector3(
-      -center.x * scaleVector.x,
-      -box.min.y * scaleVector.y,
-      -center.z * scaleVector.z
-    );
-
-    scene.traverse((object) => {
-      if (object instanceof THREE.Mesh) {
-        object.castShadow = true;
-        object.receiveShadow = true;
-      }
-    });
-
-    return { position, scale: scaleVector, scene };
-  }, [gltf.scene, item.code, targetSize]);
-
-  return (
-    <primitive
-      object={fittedModel.scene}
-      position={fittedModel.position}
-      scale={fittedModel.scale}
-    />
-  );
+  return <primitive object={fittedModel} />;
 }
 
 // Disegna il modulo parametrico usato dall'MVP e come fallback dei modelli esterni.
@@ -371,7 +312,10 @@ function getSideColors(variantKey: ProductVariantKey) {
   if (variantKey === "visible_right") {
     return { left: INTERIOR_COLOR, right: EXTERIOR_COLOR };
   }
-  if (variantKey === "one_visible_one_internal" || variantKey === "visible_left") {
+  if (
+    variantKey === "one_visible_one_internal" ||
+    variantKey === "visible_left"
+  ) {
     return {
       left: EXTERIOR_COLOR,
       right: INTERIOR_COLOR,

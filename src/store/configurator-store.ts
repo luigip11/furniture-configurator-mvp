@@ -39,6 +39,7 @@ import {
 } from "../lib/configurator/composition-constraints.ts";
 import type { ConfigurationError } from "../lib/configurator/composition-constraints.ts";
 
+import { canConfigureBaseFinish } from "../lib/configurator/parametric-bom.ts";
 export {
   CONFIGURATOR_GRID_SIZE,
   snapToGrid,
@@ -334,25 +335,67 @@ export function createConfiguratorStore() {
             ? item
             : {
                 ...item,
+                ...(canConfigureBaseFinish(item.code)
+                  ? {
+                      baseFinishConfiguration: {
+                        ...(item.baseFinishConfiguration ||
+                          DEFAULT_BASE_FINISH_CONFIGURATION),
+                        doorCount:
+                          data.count ||
+                          item.baseFinishConfiguration?.doorCount ||
+                          "one",
+                      },
+                    }
+                  : {}),
                 doorConfiguration: {
                   ...(item.doorConfiguration || DEFAULT_DOOR_CONFIGURATION),
                   ...data,
                 },
               },
         ),
-      updateBaseFinishConfiguration: (id, data) =>
+      updateBaseFinishConfiguration: (id, data) => {
+        const selected = get().items.find((item) => item.id === id);
+        if (!selected) return;
+        if (!canConfigureBaseFinish(selected.code)) {
+          set({ configurationError: "unsupportedFinish" });
+          return;
+        }
         changeItem(id, (item) => ({
           ...item,
+          ...(data.doorCount
+            ? {
+                doorConfiguration:
+                  data.doorCount === "none"
+                    ? undefined
+                    : {
+                        ...(item.doorConfiguration ||
+                          DEFAULT_DOOR_CONFIGURATION),
+                        count: data.doorCount,
+                      },
+              }
+            : {}),
           baseFinishConfiguration: {
             ...(item.baseFinishConfiguration ||
               DEFAULT_BASE_FINISH_CONFIGURATION),
             ...data,
           },
-        })),
+        }));
+      },
       updateVariant: (id, key) => {
         const item = get().items.find((item) => item.id === id);
         if (!item) return;
         const product = item.variantProducts?.[key];
+        if (
+          product &&
+          !canConfigureBaseFinish(product.code) &&
+          canConfigureBaseFinish(item.code) &&
+          (item.baseFinishConfiguration?.hasTop ||
+            (item.baseFinishConfiguration?.doorCount &&
+              item.baseFinishConfiguration.doorCount !== "none"))
+        ) {
+          set({ configurationError: "unsupportedFinish" });
+          return;
+        }
         if (
           getProductVariantKeys(item.variantProducts).length > 0 &&
           !product
@@ -476,6 +519,11 @@ function createConfiguratorItem(
     widthMm: product.width_mm,
     heightMm: product.height_mm,
     depthMm: product.depth_mm,
+    catalogDimensions: {
+      widthMm: product.width_mm,
+      heightMm: product.height_mm,
+      depthMm: product.depth_mm,
+    },
     price: product.price,
     modelUrl: product.model_url,
     position: initialPosition,
@@ -490,8 +538,9 @@ function createConfiguratorItem(
         ? variantProducts
         : undefined,
     doorConfiguration:
-      getProductVariantKeys(variantProducts).length > 1 ||
-      hasConfigurableModuleVariants(product.code)
+      !canConfigureBaseFinish(product.code) &&
+      (getProductVariantKeys(variantProducts).length > 1 ||
+        hasConfigurableModuleVariants(product.code))
         ? { ...DEFAULT_DOOR_CONFIGURATION }
         : undefined,
     color: "#d8d3c7",
@@ -514,6 +563,11 @@ function createItemFromVariantProduct(
     modelUrl: product.model_url,
     variantKey: getTechnicalVariantKey(variantKey),
     productVariantKey: variantKey,
+    catalogDimensions: {
+      widthMm: product.width_mm,
+      heightMm: product.height_mm,
+      depthMm: product.depth_mm,
+    },
   };
 }
 

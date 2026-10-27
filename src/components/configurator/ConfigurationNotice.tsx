@@ -4,6 +4,10 @@ import { useConfiguratorStore } from "@/store/configurator-store";
 
 const messages = {
   it: {
+    unsupportedFinish:
+      "Rimuovi prima top e ante nominali: la variante richiesta non supporta questi optional.",
+    dimensionsLocked:
+      "Le misure di questa variante sono fisse: mancano formule parametriche validate. Ripristina le quote di catalogo prima di cambiare variante.",
     invalidDimensions:
       "Modifica non applicata: rispetta i limiti dimensionali indicati nelle proprietà.",
     invalidCoordinates:
@@ -17,6 +21,10 @@ const messages = {
     dismiss: "Chiudi avviso",
   },
   en: {
+    unsupportedFinish:
+      "Remove the top and nominal doors first: the requested variant does not support these options.",
+    dimensionsLocked:
+      "This variant has fixed dimensions: validated parametric rules are unavailable. Restore the catalog dimensions before changing variants.",
     invalidDimensions:
       "Change rejected: use the dimension limits shown in properties.",
     invalidCoordinates: "Change rejected: enter valid numeric coordinates.",
@@ -28,6 +36,10 @@ const messages = {
     dismiss: "Dismiss notification",
   },
   fr: {
+    unsupportedFinish:
+      "Retirez d'abord le dessus et les portes nominales : la variante demandée ne prend pas en charge ces options.",
+    dimensionsLocked:
+      "Les dimensions de cette variante sont fixes : les formules paramétriques validées sont indisponibles. Rétablissez les dimensions du catalogue avant de changer de variante.",
     invalidDimensions:
       "Modification refusée : respectez les limites indiquées dans les propriétés.",
     invalidCoordinates:

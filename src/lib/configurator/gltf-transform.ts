@@ -25,7 +25,7 @@ function usesZUpAxis(code?: string | null) {
 
 // Restituisce la normalizzazione necessaria per rendere coerenti gli asset eterogenei.
 export function getGltfTransformPreset(
-  code?: string | null
+  code?: string | null,
 ): GltfTransformPreset {
   const normalizedCode = (code || "").trim().toUpperCase();
 
@@ -35,14 +35,14 @@ export function getGltfTransformPreset(
 
   return {
     rotationX: usesZUpAxis(code) ? Z_UP_ROTATION_X : 0,
-    scaleMode: "proportional",
+    scaleMode: "independent",
   };
 }
 
 // Calcola una scala uniforme per preservare le proporzioni del GLB entro l'ingombro dichiarato.
 export function getProportionalModelScale(
   source: ModelDimensions,
-  target: ModelDimensions
+  target: ModelDimensions,
 ) {
   const sourceWidth = getSafeDimension(source.width);
   const sourceHeight = getSafeDimension(source.height);
@@ -54,14 +54,14 @@ export function getProportionalModelScale(
   return Math.min(
     targetWidth / sourceWidth,
     targetHeight / sourceHeight,
-    targetDepth / sourceDepth
+    targetDepth / sourceDepth,
   );
 }
 
 // Calcola una scala per asse quando il rapporto del GLB non coincide col prodotto reale.
 export function getIndependentModelScale(
   source: ModelDimensions,
-  target: ModelDimensions
+  target: ModelDimensions,
 ): ModelDimensions {
   return {
     width: getSafeDimension(target.width) / getSafeDimension(source.width),

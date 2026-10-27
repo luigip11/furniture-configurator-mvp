@@ -340,6 +340,11 @@ export type ConfiguratorItem = {
   widthMm: number;
   heightMm: number;
   depthMm: number;
+  catalogDimensions?: Readonly<{
+    widthMm: number;
+    heightMm: number;
+    depthMm: number;
+  }>;
   price?: number | null;
   modelUrl?: string | null;
   position: [number, number, number];

@@ -1,27 +1,24 @@
 import { ConfiguratorHeader } from "@/components/configurator/ConfiguratorHeader";
 import { ConfiguratorWorkspace } from "@/components/configurator/ConfiguratorWorkspace";
 import { supabase } from "@/lib/supabase/client";
-import { Product } from "@/types/configurator";
+import { loadPublishedCatalog } from "@/lib/catalog/load-catalog";
 
 export const dynamic = "force-dynamic";
 
-async function getProducts(): Promise<Product[]> {
-  const { data, error } = await supabase
-    .from("products")
-    .select("*")
-    .eq("is_published", true)
-    .order("created_at", { ascending: true });
-
-  if (error) {
-    console.error("Error loading products", error);
-    return [];
-  }
-
-  return data || [];
+// Carica solo il catalogo pubblico e conserva lo stato di errore per l'interfaccia.
+async function getProducts() {
+  return loadPublishedCatalog(() =>
+    supabase
+      .from("products")
+      .select("*")
+      .eq("is_published", true)
+      .order("created_at", { ascending: true }),
+  );
 }
 
+// Mantiene utilizzabile la scena anche quando il catalogo remoto non risponde.
 export default async function ConfiguratorPage() {
-  const products = await getProducts();
+  const { products, failed } = await getProducts();
 
   return (
     <main className="min-h-screen bg-gray-100 p-4 text-gray-950 md:p-6 lg:h-screen lg:overflow-hidden">
@@ -30,7 +27,7 @@ export default async function ConfiguratorPage() {
           <ConfiguratorHeader />
         </div>
 
-        <ConfiguratorWorkspace products={products} />
+        <ConfiguratorWorkspace products={products} catalogFailed={failed} />
       </div>
     </main>
   );

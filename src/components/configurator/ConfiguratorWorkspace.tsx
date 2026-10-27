@@ -17,10 +17,13 @@ import { dictionary } from "@/lib/i18n/dictionary";
 
 type ConfiguratorWorkspaceProps = {
   products: Product[];
+  catalogFailed?: boolean;
 };
 
+// Compone scena e pannelli senza perdere i moduli durante il ricaricamento del catalogo.
 export function ConfiguratorWorkspace({
   products,
+  catalogFailed = false,
 }: ConfiguratorWorkspaceProps) {
   const [catalogCollapsed, setCatalogCollapsed] = useState(false);
   const [catalogExpandedWithSelection, setCatalogExpandedWithSelection] =
@@ -72,6 +75,7 @@ export function ConfiguratorWorkspace({
               </div>
               <div className="hidden h-full lg:block">
                 <CatalogPanel
+                  failed={catalogFailed}
                   collapsedGroups={catalogCollapsedGroups}
                   products={products}
                   onCollapse={() => {
@@ -84,6 +88,7 @@ export function ConfiguratorWorkspace({
             </>
           ) : (
             <CatalogPanel
+              failed={catalogFailed}
               collapsedGroups={catalogCollapsedGroups}
               products={products}
               onCollapse={() => {

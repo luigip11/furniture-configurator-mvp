@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ConfigurationNotice } from "@/components/configurator/ConfigurationNotice";
+import { QuoteDeliverySettings } from "./QuoteDeliverySettings";
 import { useEffect } from "react";
 import { ArrowUpRight, Eye, Move, ShieldCheck } from "lucide-react";
 
@@ -13,7 +14,9 @@ export function ConfiguratorAdmin() {
   const locale = useConfiguratorStore((state) => state.locale);
   const t = adminDictionary[locale];
   const settings = useConfiguratorStore((state) => state.settings);
-  const hydrateSettings = useConfiguratorStore((state) => state.hydrateSettings);
+  const hydrateSettings = useConfiguratorStore(
+    (state) => state.hydrateSettings,
+  );
   const updateSettings = useConfiguratorStore((state) => state.updateSettings);
 
   useEffect(() => {
@@ -62,10 +65,13 @@ export function ConfiguratorAdmin() {
             />
           </div>
         </div>
+        <QuoteDeliverySettings locale={locale} />
       </div>
 
       <aside className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm lg:self-start">
-        <p className="text-sm font-medium text-gray-500">{t.operationalPreview}</p>
+        <p className="text-sm font-medium text-gray-500">
+          {t.operationalPreview}
+        </p>
         <h2 className="mt-1 text-xl font-semibold">{t.configurator}</h2>
         <p className="mt-3 text-sm leading-6 text-gray-600">
           {t.previewDescription}

@@ -4,10 +4,14 @@ import { getEffectiveDoorConfiguration } from "@/lib/configurator/module-capabil
 import { canConfigureBaseFinish } from "@/lib/configurator/parametric-bom";
 import { getTechnicalIssue } from "@/lib/configurator/technical-validation";
 import { technicalDictionary } from "@/lib/i18n/technical-dictionary";
-import { useMemo } from "react";
+import { useState } from "react";
 import { Download, List, Trash2 } from "lucide-react";
 import { useConfiguratorStore } from "@/store/configurator-store";
 import { dictionary } from "@/lib/i18n/dictionary";
+import { quoteDictionary } from "@/lib/i18n/quote-dictionary";
+import { QuoteItemPrice, QuotePricingSummary } from "./QuotePricing";
+import { QuoteRequestDialog } from "./QuoteRequestDialog";
+import type { ConfiguratorItem } from "@/types/configurator";
 import {
   downloadAggregatedTechnicalSheetPdf,
   downloadTechnicalSheetPdf,
@@ -22,7 +26,11 @@ import {
   hasConfigurableModuleVariants,
 } from "@/lib/configurator/module-technical-catalog";
 
+// Riepiloga la composizione e apre la richiesta dimostrativa su una fotografia stabile dei moduli.
 export function QuotePanel() {
+  const [requestItems, setRequestItems] = useState<ConfiguratorItem[] | null>(
+    null,
+  );
   const locale = useConfiguratorStore((state) => state.locale);
   const items = useConfiguratorStore((state) => state.items);
   const selectedItemId = useConfiguratorStore((state) => state.selectedItemId);
@@ -33,10 +41,6 @@ export function QuotePanel() {
   const t = dictionary[locale];
   const technical = technicalDictionary[locale];
   const exportBlocked = items.some((item) => getTechnicalIssue(item));
-
-  const total = useMemo(() => {
-    return items.reduce((sum, item) => sum + Number(item.price || 0), 0);
-  }, [items]);
 
   return (
     <section className="rounded-2xl border bg-white p-4 shadow-sm">
@@ -107,7 +111,7 @@ export function QuotePanel() {
             return (
               <div
                 key={item.id}
-                className={`relative flex items-start justify-between gap-3 rounded-xl p-3 pb-11 transition ${
+                className={`relative rounded-xl p-3 transition ${
                   selectedItemId === item.id
                     ? "bg-blue-50 ring-2 ring-blue-500"
                     : "bg-gray-50 hover:bg-gray-100"
@@ -116,7 +120,7 @@ export function QuotePanel() {
                 <button
                   type="button"
                   onClick={() => selectItem(item.id)}
-                  className="min-w-0 flex-1 text-left focus:outline-none"
+                  className="block w-full min-w-0 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
                 >
                   <p
                     className="truncate text-sm font-bold text-gray-950"
@@ -176,9 +180,9 @@ export function QuotePanel() {
                   ) : null}
                 </button>
 
-                <p className="absolute bottom-3 left-3 text-sm font-medium text-gray-700">
-                  {item.price ? `€ ${item.price}` : "-"}
-                </p>
+                <div className="mt-3 min-h-8 pr-10">
+                  <QuoteItemPrice item={item} locale={locale} />
+                </div>
 
                 <button
                   type="button"
@@ -196,23 +200,27 @@ export function QuotePanel() {
             );
           })}
 
-          <div className="border-t pt-3">
-            <div className="flex items-center justify-between">
-              <p className="font-semibold">{t.total}</p>
-              <p className="font-semibold">
-                {total > 0 ? `€ ${total.toFixed(2)}` : "-"}
-              </p>
-            </div>
-          </div>
+          <QuotePricingSummary items={items} locale={locale} />
 
           <button
             type="button"
+            onClick={() => setRequestItems(structuredClone(items))}
             className="w-full rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2"
           >
             {t.requestQuote}
           </button>
+          <p className="text-xs text-amber-800">
+            {quoteDictionary[locale].demo}
+          </p>
         </div>
       )}
+      {requestItems ? (
+        <QuoteRequestDialog
+          items={requestItems}
+          locale={locale}
+          onClose={() => setRequestItems(null)}
+        />
+      ) : null}
     </section>
   );
 }

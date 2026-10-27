@@ -1,6 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { quoteDictionary } from "@/lib/i18n/quote-dictionary";
+import {
+  formatQuoteMoney,
+  getCatalogPrice,
+} from "@/lib/configurator/quote-pricing";
 import { ChevronDown, GripVertical, Minus, Search, X } from "lucide-react";
 import { Locale, Product } from "@/types/configurator";
 import { useConfiguratorStore } from "@/store/configurator-store";
@@ -16,6 +22,7 @@ export type CatalogCollapsedGroups = Record<string, boolean>;
 type CatalogPanelProps = {
   collapsedGroups: CatalogCollapsedGroups;
   products: Product[];
+  failed?: boolean;
   onCollapse?: () => void;
   onToggleGroup: (groupId: string, collapsed: boolean) => void;
 };
@@ -42,26 +49,31 @@ export function createDefaultCatalogCollapsedGroups(): CatalogCollapsedGroups {
   return Object.fromEntries(CATALOG_GROUPS.map((group) => [group.id, true]));
 }
 
+// Mostra distintamente catalogo vuoto, ricerca senza risultati ed errore recuperabile.
 export function CatalogPanel({
   collapsedGroups,
   products,
+  failed = false,
   onCollapse,
   onToggleGroup,
 }: CatalogPanelProps) {
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [searchText, setSearchText] = useState("");
+  const [retrying, startRetry] = useTransition();
+  const router = useRouter();
   const locale = useConfiguratorStore((state) => state.locale);
   const addProduct = useConfiguratorStore((state) => state.addProduct);
 
   const t = dictionary[locale];
+  const quote = quoteDictionary[locale];
   const normalizedSearchText = searchText.trim().toLowerCase();
   const families = useMemo(
     () => searchCatalogFamilies(products, normalizedSearchText),
-    [normalizedSearchText, products]
+    [normalizedSearchText, products],
   );
   const catalogGroups = useMemo(
     () => groupCatalogProducts(families),
-    [families]
+    [families],
   );
   const hasActiveSearch = normalizedSearchText.length > 0;
 
@@ -165,14 +177,31 @@ export function CatalogPanel({
         ) : null}
       </div>
 
-      {families.length === 0 ? (
-        <p className="text-sm text-gray-500">{t.noProducts}</p>
+      {failed ? (
+        <div
+          role="alert"
+          className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"
+        >
+          <p>{quote.catalogError}</p>
+          <button
+            type="button"
+            disabled={retrying}
+            onClick={() => startRetry(() => router.refresh())}
+            className="mt-3 rounded-lg border border-amber-400 bg-white px-3 py-2 font-semibold disabled:opacity-50"
+          >
+            {retrying ? quote.retrying : quote.retry}
+          </button>
+        </div>
+      ) : families.length === 0 ? (
+        <p className="text-sm text-gray-500">
+          {hasActiveSearch ? quote.noSearchResults : t.noProducts}
+        </p>
       ) : (
         <div className="min-h-0 space-y-2 lg:overflow-y-auto lg:pr-1">
           {catalogGroups.map((group) => {
             const collapsed = hasActiveSearch
               ? false
-              : collapsedGroups[group.id] ?? true;
+              : (collapsedGroups[group.id] ?? true);
 
             return (
               <div key={group.id} className="rounded-xl border bg-gray-50">
@@ -206,7 +235,9 @@ export function CatalogPanel({
                         key={product.key}
                         locale={locale}
                         product={product}
-                        onAdd={() => addProduct(product.product, product.variantProducts)}
+                        onAdd={() =>
+                          addProduct(product.product, product.variantProducts)
+                        }
                       />
                     ))}
                   </div>
@@ -226,6 +257,7 @@ type CatalogProductCardProps = {
   product: CatalogProductFamily;
 };
 
+// Espone anche il prezzo di riferimento o la sua assenza prima dell'inserimento nella scena.
 function CatalogProductCard({
   locale,
   onAdd,
@@ -233,6 +265,7 @@ function CatalogProductCard({
 }: CatalogProductCardProps) {
   const t = dictionary[locale];
   const sourceProduct = product.product;
+  const price = getCatalogPrice(sourceProduct.price);
   const name =
     locale === "it"
       ? sourceProduct.name_it
@@ -245,7 +278,7 @@ function CatalogProductCard({
         event.dataTransfer.effectAllowed = "copy";
         event.dataTransfer.setData(
           "application/x-configurator-product-id",
-          sourceProduct.id
+          sourceProduct.id,
         );
         event.dataTransfer.setData(
           "application/x-configurator-product-variant-ids",
@@ -254,9 +287,9 @@ function CatalogProductCard({
               Object.entries(product.variantProducts).map(([key, variant]) => [
                 key,
                 variant?.id,
-              ])
-            )
-          )
+              ]),
+            ),
+          ),
         );
         event.dataTransfer.setData("text/plain", sourceProduct.id);
       }}
@@ -270,13 +303,23 @@ function CatalogProductCard({
         <div className="min-w-0">
           <p className="text-sm font-medium">{name}</p>
           {sourceProduct.code ? (
-            <p className="truncate text-xs text-gray-500" title={sourceProduct.code}>
+            <p
+              className="truncate text-xs text-gray-500"
+              title={sourceProduct.code}
+            >
               {t.code}: {sourceProduct.code}
             </p>
           ) : null}
           <p className="mt-1 text-xs text-gray-500">
             L {sourceProduct.width_mm} × A {sourceProduct.height_mm} × P{" "}
             {sourceProduct.depth_mm} mm
+          </p>
+          <p
+            className={`mt-1 text-xs font-medium ${price === null ? "text-amber-800" : "text-gray-600"}`}
+          >
+            {price === null
+              ? quoteDictionary[locale].missingPrice
+              : `${quoteDictionary[locale].catalogPrice}: ${formatQuoteMoney(Math.round(price * 100), locale)}`}
           </p>
         </div>
       </div>
@@ -293,9 +336,11 @@ function CatalogProductCard({
 }
 
 // Organizza le famiglie già filtrate mantenendo i record e le varianti originali.
-function groupCatalogProducts(families: CatalogProductFamily[]): CatalogGroup[] {
+function groupCatalogProducts(
+  families: CatalogProductFamily[],
+): CatalogGroup[] {
   const productsByGroup = new Map<string, CatalogProductFamily[]>(
-    CATALOG_GROUPS.map((group) => [group.id, []])
+    CATALOG_GROUPS.map((group) => [group.id, []]),
   );
 
   families.forEach((family) => {

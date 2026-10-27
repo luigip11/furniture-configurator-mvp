@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ConfigurationNotice } from "./ConfigurationNotice";
 import { Plus } from "lucide-react";
 import {
   CatalogPanel,
@@ -18,12 +19,16 @@ type ConfiguratorWorkspaceProps = {
   products: Product[];
 };
 
-export function ConfiguratorWorkspace({ products }: ConfiguratorWorkspaceProps) {
+export function ConfiguratorWorkspace({
+  products,
+}: ConfiguratorWorkspaceProps) {
   const [catalogCollapsed, setCatalogCollapsed] = useState(false);
   const [catalogExpandedWithSelection, setCatalogExpandedWithSelection] =
     useState(false);
   const [catalogCollapsedGroups, setCatalogCollapsedGroups] =
-    useState<CatalogCollapsedGroups>(() => createDefaultCatalogCollapsedGroups());
+    useState<CatalogCollapsedGroups>(() =>
+      createDefaultCatalogCollapsedGroups(),
+    );
   const locale = useConfiguratorStore((state) => state.locale);
   const selectedItemId = useConfiguratorStore((state) => state.selectedItemId);
   const t = dictionary[locale];
@@ -43,60 +48,66 @@ export function ConfiguratorWorkspace({ products }: ConfiguratorWorkspaceProps) 
     : "grid min-w-0 flex-1 gap-4 transition-[grid-template-columns] lg:h-full lg:min-h-0 lg:grid-cols-[260px_minmax(0,1fr)_300px]";
 
   return (
-    <div className={gridClassName}>
-      <div className="order-2 min-h-[56px] min-w-0 lg:order-1 lg:h-full lg:min-h-0 lg:overflow-hidden">
-        {catalogCollapsed ? (
-          <CollapsedCatalogPanel
-            expandLabel={t.expandCatalog}
-            title={t.catalog}
-            onExpand={() => {
-              setCatalogCollapsed(false);
-              setCatalogExpandedWithSelection(true);
-            }}
-          />
-        ) : mobileSelectionCollapsed ? (
-          <>
-            <div className="lg:hidden">
-              <CollapsedCatalogPanel
-                expandLabel={t.expandCatalog}
-                title={t.catalog}
-                onExpand={() => setCatalogExpandedWithSelection(true)}
-              />
-            </div>
-            <div className="hidden h-full lg:block">
-              <CatalogPanel
-                collapsedGroups={catalogCollapsedGroups}
-                products={products}
-                onCollapse={() => {
-                  setCatalogExpandedWithSelection(false);
-                  setCatalogCollapsed(true);
-                }}
-                onToggleGroup={toggleCatalogGroup}
-              />
-            </div>
-          </>
-        ) : (
-          <CatalogPanel
-            collapsedGroups={catalogCollapsedGroups}
+    <>
+      <ConfigurationNotice />
+      <div className={gridClassName}>
+        <div className="order-2 min-h-[56px] min-w-0 lg:order-1 lg:h-full lg:min-h-0 lg:overflow-hidden">
+          {catalogCollapsed ? (
+            <CollapsedCatalogPanel
+              expandLabel={t.expandCatalog}
+              title={t.catalog}
+              onExpand={() => {
+                setCatalogCollapsed(false);
+                setCatalogExpandedWithSelection(true);
+              }}
+            />
+          ) : mobileSelectionCollapsed ? (
+            <>
+              <div className="lg:hidden">
+                <CollapsedCatalogPanel
+                  expandLabel={t.expandCatalog}
+                  title={t.catalog}
+                  onExpand={() => setCatalogExpandedWithSelection(true)}
+                />
+              </div>
+              <div className="hidden h-full lg:block">
+                <CatalogPanel
+                  collapsedGroups={catalogCollapsedGroups}
+                  products={products}
+                  onCollapse={() => {
+                    setCatalogExpandedWithSelection(false);
+                    setCatalogCollapsed(true);
+                  }}
+                  onToggleGroup={toggleCatalogGroup}
+                />
+              </div>
+            </>
+          ) : (
+            <CatalogPanel
+              collapsedGroups={catalogCollapsedGroups}
+              products={products}
+              onCollapse={() => {
+                setCatalogExpandedWithSelection(false);
+                setCatalogCollapsed(true);
+              }}
+              onToggleGroup={toggleCatalogGroup}
+            />
+          )}
+        </div>
+
+        <div className="order-1 min-h-[420px] min-w-0 sm:min-h-[520px] lg:order-2 lg:h-full lg:min-h-0">
+          <ConfiguratorScene
+            compactHint={catalogCollapsed}
             products={products}
-            onCollapse={() => {
-              setCatalogExpandedWithSelection(false);
-              setCatalogCollapsed(true);
-            }}
-            onToggleGroup={toggleCatalogGroup}
           />
-        )}
-      </div>
+        </div>
 
-      <div className="order-1 min-h-[420px] min-w-0 sm:min-h-[520px] lg:order-2 lg:h-full lg:min-h-0">
-        <ConfiguratorScene compactHint={catalogCollapsed} products={products} />
+        <div className="order-3 min-w-0 space-y-4 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-1">
+          <ProductPropertiesPanel />
+          <QuotePanel />
+        </div>
       </div>
-
-      <div className="order-3 min-w-0 space-y-4 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-1">
-        <ProductPropertiesPanel />
-        <QuotePanel />
-      </div>
-    </div>
+    </>
   );
 }
 

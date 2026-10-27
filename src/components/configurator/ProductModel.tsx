@@ -19,7 +19,7 @@ import { useConfiguratorStore } from "@/store/configurator-store";
 import {
   ConfiguratorItem,
   DEFAULT_MODULE_VARIANT,
-  ModuleVariantKey,
+  ProductVariantKey,
 } from "@/types/configurator";
 
 type ProductModelProps = {
@@ -300,7 +300,7 @@ function ParametricModule({
   const height = item.heightMm / SCENE_SCALE;
   const depth = item.depthMm / SCENE_SCALE;
   const thickness = Math.min(PANEL_THICKNESS, width / 5, depth / 5);
-  const sideColors = getSideColors(variantKey);
+  const sideColors = getSideColors(item.productVariantKey || variantKey);
   const panelColor = item.color || EXTERIOR_COLOR;
 
   return (
@@ -367,8 +367,11 @@ function CabinetPanel({
 }
 
 // Determina i colori dei fianchi in base alla variante tecnica del modulo.
-function getSideColors(variantKey: ModuleVariantKey) {
-  if (variantKey === "one_visible_one_internal") {
+function getSideColors(variantKey: ProductVariantKey) {
+  if (variantKey === "visible_right") {
+    return { left: INTERIOR_COLOR, right: EXTERIOR_COLOR };
+  }
+  if (variantKey === "one_visible_one_internal" || variantKey === "visible_left") {
     return {
       left: EXTERIOR_COLOR,
       right: INTERIOR_COLOR,

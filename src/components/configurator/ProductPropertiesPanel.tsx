@@ -1,6 +1,8 @@
 "use client";
 
 import Image from "next/image";
+import { ModuleNumberField as NumberField } from "./ModuleNumberField";
+import { getModuleDimensionMinimums, MAX_MODULE_DIMENSION_MM } from "@/lib/configurator/composition-constraints";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, Minus, Plus, RotateCw, X } from "lucide-react";
@@ -19,8 +21,8 @@ import {
   DOOR_MOUNT_OPTIONS,
   DoorConfiguration,
   Locale,
-  MODULE_VARIANT_OPTIONS,
-  ModuleVariantKey,
+  PRODUCT_VARIANT_OPTIONS,
+  ProductVariantKey,
   getDoorConfigurationSummary,
 } from "@/types/configurator";
 import {
@@ -80,6 +82,7 @@ export function ProductPropertiesPanel() {
       ? selectedItem.nameIt
       : selectedItem.nameEn || selectedItem.nameIt;
   const positionStep = CONFIGURATOR_GRID_SIZE;
+  const minimums = getModuleDimensionMinimums(selectedItem.code);
   const zMovementDisabled =
     sceneMode !== "open" || !allowFreeMovementInOpenScene;
   const familyVariants = getProductVariantKeys(selectedItem.variantProducts);
@@ -163,16 +166,16 @@ export function ProductPropertiesPanel() {
                 <div className="relative mb-2">
                   <select
                     id="module-variant"
-                    value={selectedItem.variantKey || DEFAULT_MODULE_VARIANT}
+                    value={selectedItem.productVariantKey || selectedItem.variantKey || DEFAULT_MODULE_VARIANT}
                     onChange={(event) =>
                       updateVariant(
                         selectedItem.id,
-                        event.target.value as ModuleVariantKey
+                        event.target.value as ProductVariantKey
                       )
                     }
                     className="w-full appearance-none rounded-lg border bg-white py-2 pl-3 pr-12 text-sm outline-none focus:border-gray-500"
                   >
-                    {MODULE_VARIANT_OPTIONS.filter((variant) =>
+                    {PRODUCT_VARIANT_OPTIONS.filter((variant) =>
                       availableVariants.includes(variant.key)
                     ).map((variant) => (
                       <option key={variant.key} value={variant.key}>
@@ -264,6 +267,8 @@ export function ProductPropertiesPanel() {
 
             <NumberField
               id="module-width"
+              min={minimums.widthMm}
+              max={MAX_MODULE_DIMENSION_MM}
               label={`${t.width} mm`}
               value={selectedItem.widthMm}
               onChange={(value) =>
@@ -273,6 +278,8 @@ export function ProductPropertiesPanel() {
 
             <NumberField
               id="module-height"
+              min={minimums.heightMm}
+              max={MAX_MODULE_DIMENSION_MM}
               label={`${t.height} mm`}
               value={selectedItem.heightMm}
               onChange={(value) =>
@@ -282,6 +289,8 @@ export function ProductPropertiesPanel() {
 
             <NumberField
               id="module-depth"
+              min={minimums.depthMm}
+              max={MAX_MODULE_DIMENSION_MM}
               label={`${t.depth} mm`}
               value={selectedItem.depthMm}
               onChange={(value) =>
@@ -974,40 +983,5 @@ function CollapsiblePanelHeader({
         )}
       </button>
     </div>
-  );
-}
-
-type NumberFieldProps = {
-  disabled?: boolean;
-  id: string;
-  label: string;
-  value: number;
-  step?: number;
-  onChange: (value: number) => void;
-};
-
-function NumberField({
-  disabled = false,
-  id,
-  label,
-  value,
-  step = 1,
-  onChange,
-}: NumberFieldProps) {
-  return (
-    <label className="block" htmlFor={id}>
-      <span className="mb-1 block text-sm font-medium text-gray-700">
-        {label}
-      </span>
-      <input
-        id={id}
-        type="number"
-        value={value}
-        step={step}
-        disabled={disabled}
-        onChange={(event) => onChange(Number(event.target.value))}
-        className="mb-2 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-500 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
-      />
-    </label>
   );
 }

@@ -70,12 +70,12 @@ test("getDockedCompositionItems aggancia i moduli in una fila centrata", () => {
 
   assert.deepEqual(
     getDockedCompositionItems([baseItem, secondItem], "open").map(
-      (item) => item.position
+      (item) => item.position,
     ),
     [
       [-0.5, 0, 0],
       [0.5, 0, 0],
-    ]
+    ],
   );
 });
 
@@ -87,16 +87,20 @@ test("getDockedItemsAfterMove usa la traslazione per riordinare i moduli", () =>
   };
 
   assert.deepEqual(
-    getDockedItemsAfterMove([baseItem, secondItem], "item-2", [-2, 0, 0], "open")
-      .map((item) => item.id),
-    ["item-2", "item-1"]
+    getDockedItemsAfterMove(
+      [baseItem, secondItem],
+      "item-2",
+      [-2, 0, 0],
+      "open",
+    ).map((item) => item.id),
+    ["item-2", "item-1"],
   );
 });
 
 test("isWallUnitProduct riconosce i pensili e la quota standard", () => {
   assert.equal(
     isWallUnitProduct({ code: "PENSILE-VERTICALE", name_it: "Pensile" }),
-    true
+    true,
   );
   assert.equal(getWallUnitSceneBottom(), 2);
 });
@@ -104,15 +108,15 @@ test("isWallUnitProduct riconosce i pensili e la quota standard", () => {
 test("shouldDockComposition permette movimento libero solo in modalita aperta", () => {
   assert.equal(
     shouldDockComposition("open", { allowFreeMovementInOpenScene: true }),
-    false
+    false,
   );
   assert.equal(
     shouldDockComposition("wall", { allowFreeMovementInOpenScene: true }),
-    true
+    true,
   );
   assert.equal(
     shouldDockComposition("open", { allowFreeMovementInOpenScene: false }),
-    true
+    true,
   );
 });
 
@@ -123,11 +127,10 @@ test("getNonOverlappingAlignedPosition evita sovrapposizioni in filo parete", ()
     position: [0, 0, 0],
   };
 
-  assert.deepEqual(getNonOverlappingAlignedPosition(nextItem, [baseItem], "wall"), [
-    -1,
-    0,
-    0.32142857142857145,
-  ]);
+  assert.deepEqual(
+    getNonOverlappingAlignedPosition(nextItem, [baseItem], "wall"),
+    [-1, 0, 0.32142857142857145],
+  );
 });
 
 test("getAlignedPositionForSceneMode mantiene il bordo a filo dopo una variazione di profondita", () => {
@@ -137,16 +140,14 @@ test("getAlignedPositionForSceneMode mantiene il bordo a filo dopo una variazion
     position: [1.1, 0, 3],
   };
 
-  assert.deepEqual(getAlignedPositionForSceneMode(updatedDepthItem, "wall"), [
-    1,
-    0,
-    0.32142857142857145,
-  ]);
-  assert.deepEqual(getAlignedPositionForSceneMode(updatedDepthItem, "front"), [
-    1,
-    0,
-    -0.32142857142857145,
-  ]);
+  assert.deepEqual(
+    getAlignedPositionForSceneMode(updatedDepthItem, "wall"),
+    [1, 0, 0.32142857142857145],
+  );
+  assert.deepEqual(
+    getAlignedPositionForSceneMode(updatedDepthItem, "front"),
+    [1, 0, -0.32142857142857145],
+  );
 });
 
 test("getNonOverlappingAlignedPosition mantiene i moduli accostati in sequenza", () => {
@@ -162,8 +163,12 @@ test("getNonOverlappingAlignedPosition mantiene i moduli accostati in sequenza",
   };
 
   assert.deepEqual(
-    getNonOverlappingAlignedPosition(thirdItem, [baseItem, secondItem], "front"),
-    [2, 0, -0.32142857142857145]
+    getNonOverlappingAlignedPosition(
+      thirdItem,
+      [baseItem, secondItem],
+      "front",
+    ),
+    [2, 0, -0.32142857142857145],
   );
 });
 
@@ -171,13 +176,31 @@ test("clampItemPositionToGridBounds mantiene il modulo nel piano quadrettato", (
   assert.deepEqual(clampItemPositionToGridBounds(baseItem, [20, 0, -20]), [
     CONFIGURATOR_GRID_HALF_SIZE - 0.5,
     0,
-    -6.75,
+    -6.5,
   ]);
 });
 
 test("clampItemPositionToGridBounds considera l'ingombro ruotato", () => {
   assert.deepEqual(
     clampItemPositionToGridBounds({ ...baseItem, rotationY: 90 }, [20, 0, 20]),
-    [6.75, 0, CONFIGURATOR_GRID_HALF_SIZE - 0.5]
+    [6.5, 0, CONFIGURATOR_GRID_HALF_SIZE - 0.5],
   );
+});
+
+test("lo snap non oltrepassa il limite geometrico con quote non multiple della griglia", () => {
+  const item = { ...baseItem, widthMm: 500, depthMm: 431.2 };
+  for (const rotationY of [0, 90, 180, 270]) {
+    const position = clampItemPositionToGridBounds(
+      { ...item, rotationY },
+      [100, 0, -100],
+    );
+    const width = rotationY % 180 === 0 ? item.widthMm : item.depthMm;
+    const depth = rotationY % 180 === 0 ? item.depthMm : item.widthMm;
+    assert.ok(
+      Math.abs(position[0]) + width / 1400 <= CONFIGURATOR_GRID_HALF_SIZE,
+    );
+    assert.ok(
+      Math.abs(position[2]) + depth / 1400 <= CONFIGURATOR_GRID_HALF_SIZE,
+    );
+  }
 });

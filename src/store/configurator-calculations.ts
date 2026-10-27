@@ -80,11 +80,17 @@ export function clampItemPositionToGridBounds(
   const maxX = Math.max(0, CONFIGURATOR_GRID_HALF_SIZE - footprint.width / 2);
   const maxZ = Math.max(0, CONFIGURATOR_GRID_HALF_SIZE - footprint.depth / 2);
 
-  return snapPosition([
-    Math.min(maxX, Math.max(-maxX, position[0])),
+  return [
+    snapWithinBounds(position[0], maxX),
     position[1],
-    Math.min(maxZ, Math.max(-maxZ, position[2])),
-  ]);
+    snapWithinBounds(position[2], maxZ),
+  ];
+}
+
+// Arrotonda verso l'interno i limiti prima dello snap, evitando fuoriuscite dal piano.
+function snapWithinBounds(value: number, maximum: number) {
+  const safeMaximum = Math.floor((maximum + 1e-9) / CONFIGURATOR_GRID_SIZE) * CONFIGURATOR_GRID_SIZE;
+  return Math.min(safeMaximum, Math.max(-safeMaximum, snapToGrid(value)));
 }
 
 export function getAlignedPositionForSceneMode(
@@ -105,7 +111,7 @@ export function getAlignedPositionForSceneMode(
   // Mantiene il bordo del modulo esattamente sulla guida: lo snap della Z
   // sposterebbe l'elemento fuori filo quando la profondita non e multipla della griglia.
   return [
-    snapToGrid(Math.min(maxX, Math.max(-maxX, x))),
+    snapWithinBounds(x, maxX),
     y,
     z,
   ];
@@ -221,7 +227,7 @@ export function getNextPosition(
   if (items.length === 0) return [0, 0, 0];
 
   const rightEdge = Math.max(
-    ...items.map((item) => item.position[0] + getItemSceneWidth(item) / 2)
+    ...items.map((item) => item.position[0] + getItemFootprintScene(item).width / 2)
   );
   const width = widthMm / CONFIGURATOR_SCENE_SCALE;
 
@@ -261,8 +267,7 @@ function positionItemsFromLeft(items: ConfiguratorItem[], sceneMode: SceneMode) 
 
   return alignedItems.map((item) => {
     const footprint = getItemFootprintScene(item);
-    const centerX = Number((leftEdge + footprint.width / 2).toFixed(4));
-    const maxX = Math.max(0, CONFIGURATOR_GRID_HALF_SIZE - footprint.width / 2);
+    const centerX = leftEdge + footprint.width / 2;
     const [, y, z] = item.position;
 
     leftEdge += footprint.width;
@@ -270,7 +275,7 @@ function positionItemsFromLeft(items: ConfiguratorItem[], sceneMode: SceneMode) 
     return {
       ...item,
       position: [
-        Math.min(maxX, Math.max(-maxX, centerX)),
+        centerX,
         y,
         z,
       ] satisfies [number, number, number],

@@ -28,7 +28,8 @@ import {
 } from "@/store/configurator-calculations";
 import {
   ConfiguratorItem,
-  ModuleVariantKey,
+  ProductVariantKey,
+  PRODUCT_VARIANT_OPTIONS,
   Product,
   ProductVariantProducts,
   SCENE_MODE_OPTIONS,
@@ -52,7 +53,7 @@ type CatalogDropRequest = {
   clientY: number;
   id: number;
   productId: string;
-  variantProductIds: Partial<Record<ModuleVariantKey, string>>;
+  variantProductIds: Partial<Record<ProductVariantKey, string>>;
 };
 
 type ViewCommandType = "zoom-in" | "zoom-out" | "rotate";
@@ -732,15 +733,11 @@ export function ConfiguratorScene({
 // Ricostruisce le varianti del catalogo dal payload drag senza accettare chiavi o valori non validi.
 function readVariantProductIds(
   serializedVariantProductIds: string
-): Partial<Record<ModuleVariantKey, string>> {
+): Partial<Record<ProductVariantKey, string>> {
   try {
     const parsed = JSON.parse(serializedVariantProductIds) as Record<string, unknown>;
-    const result: Partial<Record<ModuleVariantKey, string>> = {};
-    const validKeys: ModuleVariantKey[] = [
-      "two_visible_sides",
-      "one_visible_one_internal",
-      "two_internal_sides",
-    ];
+    const result: Partial<Record<ProductVariantKey, string>> = {};
+    const validKeys = PRODUCT_VARIANT_OPTIONS.map((option) => option.key);
 
     validKeys.forEach((key) => {
       if (typeof parsed[key] === "string") result[key] = parsed[key];
@@ -755,7 +752,7 @@ function readVariantProductIds(
 // Converte gli identificativi trascinati nei record completi che lo store usa per cambiare variante.
 function getVariantProducts(
   products: Product[],
-  variantProductIds: Partial<Record<ModuleVariantKey, string>>
+  variantProductIds: Partial<Record<ProductVariantKey, string>>
 ): ProductVariantProducts {
   return Object.fromEntries(
     Object.entries(variantProductIds)
@@ -763,7 +760,7 @@ function getVariantProducts(
         key,
         products.find((product) => product.id === productId),
       ])
-      .filter((entry): entry is [ModuleVariantKey, Product] => Boolean(entry[1]))
+      .filter((entry): entry is [ProductVariantKey, Product] => Boolean(entry[1]))
   ) as ProductVariantProducts;
 }
 

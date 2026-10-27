@@ -7,7 +7,8 @@ import { useConfiguratorStore } from "@/store/configurator-store";
 import { dictionary } from "@/lib/i18n/dictionary";
 import {
   CatalogProductFamily,
-  groupProductsIntoFamilies,
+  searchCatalogFamilies,
+  getCatalogGroupId,
 } from "@/lib/configurator/product-variants";
 
 export type CatalogCollapsedGroups = Record<string, boolean>;
@@ -54,13 +55,13 @@ export function CatalogPanel({
 
   const t = dictionary[locale];
   const normalizedSearchText = searchText.trim().toLowerCase();
-  const filteredProducts = useMemo(
-    () => filterCatalogProducts(products, normalizedSearchText),
+  const families = useMemo(
+    () => searchCatalogFamilies(products, normalizedSearchText),
     [normalizedSearchText, products]
   );
   const catalogGroups = useMemo(
-    () => groupCatalogProducts(filteredProducts),
-    [filteredProducts]
+    () => groupCatalogProducts(families),
+    [families]
   );
   const hasActiveSearch = normalizedSearchText.length > 0;
 
@@ -164,7 +165,7 @@ export function CatalogPanel({
         ) : null}
       </div>
 
-      {filteredProducts.length === 0 ? (
+      {families.length === 0 ? (
         <p className="text-sm text-gray-500">{t.noProducts}</p>
       ) : (
         <div className="min-h-0 space-y-2 lg:overflow-y-auto lg:pr-1">
@@ -291,25 +292,13 @@ function CatalogProductCard({
   );
 }
 
-// Filtra i prodotti su nome, traduzione e codice senza alterare il dato sorgente.
-function filterCatalogProducts(products: Product[], searchText: string) {
-  if (!searchText) return products;
-
-  return products.filter((product) => {
-    const searchableText = `${product.name_it} ${product.name_en || ""} ${
-      product.code || ""
-    }`.toLowerCase();
-
-    return searchableText.includes(searchText);
-  });
-}
-
-function groupCatalogProducts(products: Product[]): CatalogGroup[] {
+// Organizza le famiglie già filtrate mantenendo i record e le varianti originali.
+function groupCatalogProducts(families: CatalogProductFamily[]): CatalogGroup[] {
   const productsByGroup = new Map<string, CatalogProductFamily[]>(
     CATALOG_GROUPS.map((group) => [group.id, []])
   );
 
-  groupProductsIntoFamilies(products).forEach((family) => {
+  families.forEach((family) => {
     const groupId = getCatalogGroupId(family.product);
     productsByGroup.get(groupId)?.push(family);
   });
@@ -319,20 +308,4 @@ function groupCatalogProducts(products: Product[]): CatalogGroup[] {
     title: group.titleKey,
     products: productsByGroup.get(group.id) || [],
   })).filter((group) => group.products.length > 0);
-}
-
-function getCatalogGroupId(product: Product) {
-  const text = `${product.code || ""} ${product.name_it} ${
-    product.name_en || ""
-  }`.toLowerCase();
-
-  if (text.includes("colonna")) return "columns";
-  if (text.includes("port")) return "portal";
-  if (text.includes("pensile")) return "wallUnits";
-  if (text.includes("impiant") || text.includes("cont")) return "systems";
-  if (text.includes("lavatrice") || text.includes("asciug")) return "laundry";
-  if (text.includes("sottolavatoio")) return "washbasin";
-  if (text.includes("sottolav")) return "sink";
-
-  return "standard";
 }

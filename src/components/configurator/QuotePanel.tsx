@@ -77,7 +77,7 @@ export function QuotePanel() {
             const name =
               locale === "it" ? item.nameIt : item.nameEn || item.nameIt;
             const variantLabel = getModuleVariantLabel(
-              item.variantKey || DEFAULT_MODULE_VARIANT,
+              item.productVariantKey || item.variantKey || DEFAULT_MODULE_VARIANT,
               locale
             );
             const doorConfigurationSummary = getDoorConfigurationSummary(

@@ -1,6 +1,6 @@
 import { DEFAULT_MODULE_VARIANT } from "../../types/configurator.ts";
 import type {
-  ModuleVariantKey,
+  ProductVariantKey,
   Product,
   ProductVariantProducts,
 } from "../../types/configurator.ts";
@@ -13,7 +13,7 @@ export type CatalogProductFamily = {
 
 type VariantSuffix = {
   suffix: string;
-  variantKey: ModuleVariantKey;
+  variantKey: ProductVariantKey;
 };
 
 const VARIANT_SUFFIXES: VariantSuffix[] = [
@@ -23,21 +23,60 @@ const VARIANT_SUFFIXES: VariantSuffix[] = [
   { suffix: "_CON_2_FIANCHIA_VISTA", variantKey: "two_visible_sides" },
   {
     suffix: "_CON_1_FIANCO_INTERNO_1_FIANCO_VISTA",
-    variantKey: "one_visible_one_internal",
+    variantKey: "visible_right",
   },
   {
     suffix: "_CON_1_FIANCHIA_VISTA_1_FIANCO_INTERNO",
-    variantKey: "one_visible_one_internal",
+    variantKey: "visible_left",
   },
   {
     suffix: "_1_FIANCO_INTERNO_1_FIANCO_A_VISTA_2",
     variantKey: "one_visible_one_internal",
   },
   { suffix: "_FIANCHI_PORTANTI_2", variantKey: "two_visible_sides" },
-  { suffix: "_A_VISTA_DX", variantKey: "one_visible_one_internal" },
-  { suffix: "_A_VISTA_SX", variantKey: "one_visible_one_internal" },
+  { suffix: "_A_VISTA_DX", variantKey: "visible_right" },
+  { suffix: "_A_VISTA_SX", variantKey: "visible_left" },
   { suffix: "_NON_A_VISTA", variantKey: "two_internal_sides" },
 ];
+
+// Mantiene tutte le varianti disponibili e privilegia il codice esatto cercato.
+export function searchCatalogFamilies(
+  products: Product[],
+  query: string,
+): CatalogProductFamily[] {
+  const search = query.trim().toLowerCase();
+  return groupProductsIntoFamilies(products).flatMap((family) => {
+    if (!search) return [family];
+    const matches = [
+      family.product,
+      ...Object.values(family.variantProducts),
+    ].filter((product) =>
+      `${product.code || ""} ${product.name_it} ${product.name_en || ""}`
+        .toLowerCase()
+        .includes(search),
+    );
+    const product =
+      matches.find((product) => product.code?.toLowerCase() === search) ||
+      matches[0];
+    return product ? [{ ...family, product }] : [];
+  });
+}
+
+// Classifica il prodotto senza confondere i fianchi portanti con un portale.
+export function getCatalogGroupId(product: Product) {
+  const text =
+    `${product.code || ""} ${product.name_it} ${product.name_en || ""}`.toLowerCase();
+  if (text.includes("colonna") || text.includes("column")) return "columns";
+  if (/(?:^|[\s_-])portal(?:e|i)?(?:$|[\s_-])/.test(text)) return "portal";
+  if (text.includes("pensile") || text.includes("wall unit"))
+    return "wallUnits";
+  if (text.includes("impiant") || text.includes("contenitore"))
+    return "systems";
+  if (text.includes("lavatrice") || text.includes("asciug")) return "laundry";
+  if (text.includes("sottolavatoio")) return "washbasin";
+  if (text.includes("sottolav")) return "sink";
+  return "standard";
+}
 
 // Ricava la famiglia e la variante laterale dal codice pubblicato nel catalogo.
 function getVariantDescriptor(product: Product) {
@@ -55,8 +94,24 @@ function getVariantDescriptor(product: Product) {
     : null;
 }
 
+// Riconosce il record selezionato anche quando la ricerca mostra una singola variante.
+export function getProductVariantKey(
+  product: Product,
+  variants?: ProductVariantProducts,
+): ProductVariantKey {
+  return (
+    getProductVariantKeys(variants).find(
+      (key) => variants?.[key]?.id === product.id,
+    ) ||
+    getVariantDescriptor(product)?.variantKey ||
+    DEFAULT_MODULE_VARIANT
+  );
+}
+
 // Riunisce i record Supabase equivalenti in una card catalogo con le varianti disponibili.
-export function groupProductsIntoFamilies(products: Product[]): CatalogProductFamily[] {
+export function groupProductsIntoFamilies(
+  products: Product[],
+): CatalogProductFamily[] {
   const families = new Map<string, CatalogProductFamily>();
 
   [...products]
@@ -87,6 +142,8 @@ export function groupProductsIntoFamilies(products: Product[]): CatalogProductFa
   return [...families.values()].map((family) => {
     const defaultProduct =
       family.variantProducts[DEFAULT_MODULE_VARIANT] ||
+      family.variantProducts.visible_right ||
+      family.variantProducts.visible_left ||
       family.variantProducts.one_visible_one_internal ||
       family.variantProducts.two_internal_sides ||
       family.product;
@@ -97,22 +154,26 @@ export function groupProductsIntoFamilies(products: Product[]): CatalogProductFa
 
 // Restituisce le sole varianti realmente disponibili per una famiglia inserita in scena.
 export function getProductVariantKeys(
-  variantProducts: ProductVariantProducts | undefined
-): ModuleVariantKey[] {
+  variantProducts: ProductVariantProducts | undefined,
+): ProductVariantKey[] {
   if (!variantProducts) return [];
 
-  return ([
-    "two_visible_sides",
-    "one_visible_one_internal",
-    "two_internal_sides",
-  ] as ModuleVariantKey[]).filter((variantKey) => Boolean(variantProducts[variantKey]));
+  return (
+    [
+      "two_visible_sides",
+      "visible_left",
+      "visible_right",
+      "one_visible_one_internal",
+      "two_internal_sides",
+    ] as ProductVariantKey[]
+  ).filter((variantKey) => Boolean(variantProducts[variantKey]));
 }
 
 // Seleziona una variante valida, mantenendo una scelta predefinita stabile per dati incompleti.
 export function getSafeProductVariant(
   variantProducts: ProductVariantProducts | undefined,
-  requestedVariant: ModuleVariantKey
-): ModuleVariantKey | null {
+  requestedVariant: ProductVariantKey,
+): ProductVariantKey | null {
   const availableVariants = getProductVariantKeys(variantProducts);
 
   if (availableVariants.length === 0) return null;
@@ -127,7 +188,7 @@ export function getSafeProductVariant(
 // Restituisce il record sorgente della variante richiesta, incluso il suo URL GLB dedicato.
 export function getProductForVariant(
   variantProducts: ProductVariantProducts | undefined,
-  requestedVariant: ModuleVariantKey
+  requestedVariant: ProductVariantKey,
 ): Product | null {
   const safeVariant = getSafeProductVariant(variantProducts, requestedVariant);
 

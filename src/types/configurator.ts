@@ -31,7 +31,15 @@ export type ModuleVariantKey =
   | "one_visible_one_internal"
   | "two_internal_sides";
 
-export type ProductVariantProducts = Partial<Record<ModuleVariantKey, Product>>;
+// Separa l'orientamento del record catalogo dalle tre varianti della distinta tecnica.
+export type ProductVariantKey =
+  | ModuleVariantKey
+  | "visible_left"
+  | "visible_right";
+
+export type ProductVariantProducts = Partial<
+  Record<ProductVariantKey, Product>
+>;
 
 export type DoorCountKey = "one" | "two";
 
@@ -139,12 +147,43 @@ export const MODULE_VARIANT_OPTIONS = [
   labelFr: string;
 }[];
 
+export const PRODUCT_VARIANT_OPTIONS = [
+  ...MODULE_VARIANT_OPTIONS,
+  {
+    key: "visible_left",
+    labelIt: "Fianco a vista SX / interno DX",
+    labelEn: "Visible left / internal right side",
+    labelFr: "Côté gauche visible / droit intérieur",
+  },
+  {
+    key: "visible_right",
+    labelIt: "Fianco interno SX / a vista DX",
+    labelEn: "Internal left / visible right side",
+    labelFr: "Côté gauche intérieur / droit visible",
+  },
+] satisfies {
+  key: ProductVariantKey;
+  labelIt: string;
+  labelEn: string;
+  labelFr: string;
+}[];
+
+// Converte una scelta orientata nella variante tecnica senza perdere il record sorgente.
+export function getTechnicalVariantKey(
+  key: ProductVariantKey,
+): ModuleVariantKey {
+  return key === "visible_left" || key === "visible_right"
+    ? "one_visible_one_internal"
+    : key;
+}
+
+// Mostra anche l'orientamento quando la variante proviene da un record DX o SX.
 export function getModuleVariantLabel(
-  variantKey: ModuleVariantKey,
-  locale: Locale
+  variantKey: ProductVariantKey,
+  locale: Locale,
 ) {
   const option =
-    MODULE_VARIANT_OPTIONS.find((variant) => variant.key === variantKey) ||
+    PRODUCT_VARIANT_OPTIONS.find((variant) => variant.key === variantKey) ||
     MODULE_VARIANT_OPTIONS[0];
 
   return getLocalizedOptionLabel(option, locale);
@@ -258,7 +297,7 @@ export const DOOR_MACHINING_OPTIONS = [
 function getOptionLabel<Key extends string>(
   options: { key: Key; labelIt: string; labelEn: string; labelFr: string }[],
   key: Key,
-  locale: Locale
+  locale: Locale,
 ) {
   const option = options.find((currentOption) => currentOption.key === key);
   const safeOption = option || options[0];
@@ -269,7 +308,7 @@ function getOptionLabel<Key extends string>(
 // Restituisce la label nella lingua scelta mantenendo un unico criterio per tutte le opzioni.
 function getLocalizedOptionLabel(
   option: { labelIt: string; labelEn: string; labelFr: string },
-  locale: Locale
+  locale: Locale,
 ) {
   if (locale === "it") return option.labelIt;
   if (locale === "fr") return option.labelFr;
@@ -280,7 +319,7 @@ function getLocalizedOptionLabel(
 // Restituisce le quattro scelte anta in forma leggibile per riepilogo e PDF.
 export function getDoorConfigurationSummary(
   configuration: DoorConfiguration | undefined,
-  locale: Locale
+  locale: Locale,
 ) {
   if (!configuration) return [];
 
@@ -306,6 +345,7 @@ export type ConfiguratorItem = {
   position: [number, number, number];
   rotationY: number;
   variantKey: ModuleVariantKey;
+  productVariantKey?: ProductVariantKey;
   variantProducts?: ProductVariantProducts;
   baseFinishConfiguration?: BaseFinishConfiguration;
   doorConfiguration?: DoorConfiguration;

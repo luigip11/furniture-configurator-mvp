@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ConfigurationNotice } from "@/components/configurator/ConfigurationNotice";
 import { useEffect } from "react";
 import { ArrowUpRight, Eye, Move, ShieldCheck } from "lucide-react";
 
@@ -22,6 +23,7 @@ export function ConfiguratorAdmin() {
   return (
     <section className="mx-auto grid max-w-7xl gap-5 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:px-8">
       <div className="space-y-4">
+        <ConfigurationNotice />
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-3 border-b border-gray-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>

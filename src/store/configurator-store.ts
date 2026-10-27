@@ -1,41 +1,48 @@
 import { create } from "zustand";
 import {
-  ConfiguratorItem,
-  BaseFinishConfiguration,
-  ConfiguratorSettings,
   DEFAULT_CONFIGURATOR_SETTINGS,
   DEFAULT_BASE_FINISH_CONFIGURATION,
   DEFAULT_DOOR_CONFIGURATION,
-  DEFAULT_MODULE_VARIANT,
+  getTechnicalVariantKey,
+} from "../types/configurator.ts";
+import type {
+  ConfiguratorItem,
+  BaseFinishConfiguration,
+  ConfiguratorSettings,
   DoorConfiguration,
   Locale,
-  ModuleVariantKey,
+  ProductVariantKey,
   Product,
   ProductVariantProducts,
   SceneMode,
-} from "@/types/configurator";
+} from "../types/configurator.ts";
 import {
-  clampItemPositionToGridBounds,
-  getDockedCompositionItems,
   getDockedItemsAfterMove,
   getNextPosition,
   getWallUnitSceneBottom,
   isWallUnitProduct,
   normalizeRotation,
   shouldDockComposition,
-  snapPosition,
-} from "@/store/configurator-calculations";
+} from "./configurator-calculations.ts";
 import {
+  getAvailableModuleVariants,
   getSafeModuleVariant,
   hasConfigurableModuleVariants,
-} from "@/lib/configurator/module-technical-catalog";
+} from "../lib/configurator/module-technical-catalog.ts";
 import {
-  getProductForVariant,
+  getProductVariantKey,
   getProductVariantKeys,
-  getSafeProductVariant,
-} from "@/lib/configurator/product-variants";
+} from "../lib/configurator/product-variants.ts";
+import {
+  findAvailablePosition,
+  resolveComposition,
+} from "../lib/configurator/composition-constraints.ts";
+import type { ConfigurationError } from "../lib/configurator/composition-constraints.ts";
 
-export { CONFIGURATOR_GRID_SIZE, snapToGrid } from "@/store/configurator-calculations";
+export {
+  CONFIGURATOR_GRID_SIZE,
+  snapToGrid,
+} from "./configurator-calculations.ts";
 
 const CONFIGURATOR_SETTINGS_STORAGE_KEY = "furniture-configurator-settings";
 const CONFIGURATOR_LOCALE_STORAGE_KEY = "furniture-configurator-locale";
@@ -43,6 +50,8 @@ const CONFIGURATOR_LOCALE_STORAGE_KEY = "furniture-configurator-locale";
 type ConfiguratorHistorySnapshot = {
   items: ConfiguratorItem[];
   selectedItemId: string | null;
+  sceneMode: SceneMode;
+  settings: ConfiguratorSettings;
 };
 
 type ConfiguratorStore = {
@@ -57,6 +66,8 @@ type ConfiguratorStore = {
   selectedItemId: string | null;
   canRedo: boolean;
   canUndo: boolean;
+  configurationError: ConfigurationError | null;
+  dismissConfigurationError: () => void;
 
   commitHistory: () => void;
   hydrateLocale: () => void;
@@ -64,32 +75,35 @@ type ConfiguratorStore = {
   updateSettings: (settings: Partial<ConfiguratorSettings>) => void;
   setLocale: (locale: Locale) => void;
   setSceneMode: (sceneMode: SceneMode) => void;
-  addProduct: (product: Product, variantProducts?: ProductVariantProducts) => void;
+  addProduct: (
+    product: Product,
+    variantProducts?: ProductVariantProducts,
+  ) => void;
   addProductAtPosition: (
     product: Product,
     position: [number, number, number],
-    variantProducts?: ProductVariantProducts
+    variantProducts?: ProductVariantProducts,
   ) => void;
   selectItem: (itemId: string | null) => void;
   updateItem: (
     itemId: string,
     data: Partial<
       Pick<ConfiguratorItem, "widthMm" | "heightMm" | "depthMm" | "position">
-    >
+    >,
   ) => void;
   updateDoorConfiguration: (
     itemId: string,
-    data: Partial<DoorConfiguration>
+    data: Partial<DoorConfiguration>,
   ) => void;
-  updateVariant: (itemId: string, variantKey: ModuleVariantKey) => void;
+  updateVariant: (itemId: string, variantKey: ProductVariantKey) => void;
   updateBaseFinishConfiguration: (
     itemId: string,
-    data: Partial<BaseFinishConfiguration>
+    data: Partial<BaseFinishConfiguration>,
   ) => void;
   updatePosition: (
     itemId: string,
     position: [number, number, number],
-    options?: { recordHistory?: boolean }
+    options?: { recordHistory?: boolean },
   ) => void;
   duplicateItem: (itemId: string) => void;
   rotateItem: (itemId: string) => void;
@@ -100,388 +114,344 @@ type ConfiguratorStore = {
   undo: () => void;
 };
 
-export const useConfiguratorStore = create<ConfiguratorStore>((set, get) => ({
-  settings: DEFAULT_CONFIGURATOR_SETTINGS,
-  settingsHydrated: false,
-  locale: "it",
-  localeHydrated: false,
-  items: [],
-  past: [],
-  future: [],
-  sceneMode: "open",
-  selectedItemId: null,
-  canRedo: false,
-  canUndo: false,
+// Crea uno store isolabile nei test, applicando ogni modifica geometrica in modo atomico.
+export function createConfiguratorStore() {
+  return create<ConfiguratorStore>((set, get) => {
+    let gestureSnapshot: ConfiguratorHistorySnapshot | null = null;
 
-  commitHistory: () => {
-    const { items, past, selectedItemId } = get();
+    // Valida il candidato prima di cambiare elementi, modalità, impostazioni o storico.
+    function commit(
+      changes: Partial<
+        Pick<
+          ConfiguratorStore,
+          "items" | "sceneMode" | "settings" | "selectedItemId"
+        >
+      >,
+      recordHistory = true,
+    ) {
+      const state = get();
+      const candidate = { ...state, ...changes };
+      const result = resolveComposition(
+        candidate.items,
+        candidate.sceneMode,
+        candidate.settings,
+      );
+      if (result.error) {
+        set({ configurationError: result.error });
+        return;
+      }
+      const next = {
+        items: result.items,
+        sceneMode: candidate.sceneMode,
+        settings: candidate.settings,
+        selectedItemId: candidate.selectedItemId,
+      };
+      if (
+        JSON.stringify(cloneSnapshot(state)) ===
+        JSON.stringify(cloneSnapshot(next))
+      ) {
+        set({ configurationError: null });
+        return;
+      }
+      const snapshot = recordHistory ? cloneSnapshot(state) : gestureSnapshot;
+      gestureSnapshot = null;
+      set({
+        ...next,
+        configurationError: null,
+        future: [],
+        canRedo: false,
+        ...(snapshot
+          ? {
+              past: [...state.past, snapshot],
+              canUndo: true,
+            }
+          : {}),
+      });
+    }
 
-    set({
-      past: [...past, cloneSnapshot({ items, selectedItemId })],
+    // Inserisce un nuovo modulo solo se trova una composizione geometricamente valida.
+    function insert(item: ConfiguratorItem) {
+      const state = get();
+      const single = resolveComposition(
+        [item],
+        state.sceneMode,
+        state.settings,
+      );
+      if (single.error) {
+        set({ configurationError: single.error });
+        return;
+      }
+      if (!shouldDockComposition(state.sceneMode, state.settings)) {
+        const position = findAvailablePosition(item, state.items);
+        if (!position) {
+          set({ configurationError: "capacityExceeded" });
+          return;
+        }
+        item = { ...item, position };
+      }
+      commit({ items: [...state.items, item], selectedItemId: item.id });
+    }
+
+    // Usa lo stesso percorso per campi numerici, pulsanti e trascinamento, preservando la quota Y.
+    function move(
+      itemId: string,
+      position: [number, number, number],
+      recordHistory = true,
+    ) {
+      const state = get();
+      const item = state.items.find((item) => item.id === itemId);
+      if (!item) return;
+      if (!position.every(Number.isFinite)) {
+        set({ configurationError: "invalidCoordinates" });
+        return;
+      }
+      const desired: [number, number, number] = [
+        position[0],
+        item.position[1],
+        position[2],
+      ];
+      const items = shouldDockComposition(state.sceneMode, state.settings)
+        ? getDockedItemsAfterMove(state.items, itemId, desired, state.sceneMode)
+        : state.items.map((item) =>
+            item.id === itemId ? { ...item, position: desired } : item,
+          );
+      commit({ items }, recordHistory);
+    }
+
+    // Aggiorna solo il modulo esistente e lascia intatto lo storico delle operazioni rifiutate.
+    function changeItem(
+      itemId: string,
+      change: (item: ConfiguratorItem) => ConfiguratorItem,
+    ) {
+      if (!get().items.some((item) => item.id === itemId)) return;
+      commit({
+        items: get().items.map((item) =>
+          item.id === itemId ? change(item) : item,
+        ),
+      });
+    }
+
+    // Ripristina insieme geometria, modalità e impostazioni che influenzano i vincoli.
+    function restore(direction: "undo" | "redo") {
+      const state = get();
+      const source = direction === "undo" ? state.past : state.future;
+      const snapshot = source.at(-1);
+      if (!snapshot) return;
+      const past =
+        direction === "undo"
+          ? state.past.slice(0, -1)
+          : [...state.past, cloneSnapshot(state)];
+      const future =
+        direction === "redo"
+          ? state.future.slice(0, -1)
+          : [...state.future, cloneSnapshot(state)];
+      gestureSnapshot = null;
+      writeStoredSettings(snapshot.settings);
+      set({
+        ...cloneSnapshot(snapshot),
+        past,
+        future,
+        canUndo: past.length > 0,
+        canRedo: future.length > 0,
+        configurationError: null,
+      });
+    }
+
+    return {
+      settings: DEFAULT_CONFIGURATOR_SETTINGS,
+      settingsHydrated: false,
+      locale: "it",
+      localeHydrated: false,
+      items: [],
+      past: [],
       future: [],
-      canUndo: true,
+      sceneMode: "open",
+      selectedItemId: null,
       canRedo: false,
-    });
-  },
-
-  hydrateSettings: () => {
-    if (get().settingsHydrated) return;
-
-    set({
-      settings: readStoredSettings(),
-      settingsHydrated: true,
-    });
-  },
-
-  hydrateLocale: () => {
-    if (get().localeHydrated) return;
-
-    set({
-      locale: readStoredLocale(),
-      localeHydrated: true,
-    });
-  },
-
-  updateSettings: (settings) => {
-    const nextSettings = {
-      ...get().settings,
-      ...settings,
-    };
-    const shouldRealign =
-      get().settings.allowFreeMovementInOpenScene &&
-      !nextSettings.allowFreeMovementInOpenScene;
-
-    writeStoredSettings(nextSettings);
-
-    set({
-      settings: nextSettings,
-      settingsHydrated: true,
-      items: shouldRealign
-        ? getDockedCompositionItems(get().items, get().sceneMode)
-        : get().items,
-    });
-  },
-
-  setLocale: (locale) => {
-    writeStoredLocale(locale);
-    set({ locale, localeHydrated: true });
-  },
-
-  setSceneMode: (sceneMode) => {
-    get().commitHistory();
-    const alignedItems = shouldDockComposition(sceneMode, get().settings)
-      ? getDockedCompositionItems(get().items, sceneMode)
-      : get().items;
-
-    set({
-      sceneMode,
-      items: alignedItems,
-    });
-  },
-
-  addProduct: (product, variantProducts) => {
-    const currentItems = get().items;
-    get().commitHistory();
-
-    const item = createConfiguratorItem(
-      product,
-      getNextPosition(currentItems, product.width_mm),
-      variantProducts
-    );
-    const nextRawItems = [...currentItems, item];
-    const nextItems = shouldDockComposition(get().sceneMode, get().settings)
-      ? getDockedCompositionItems(nextRawItems, get().sceneMode)
-      : nextRawItems;
-    const alignedItem = nextItems.find((currentItem) => currentItem.id === item.id);
-
-    set({
-      items: nextItems,
-      selectedItemId: alignedItem?.id || item.id,
-    });
-  },
-
-  addProductAtPosition: (product, position, variantProducts) => {
-    const currentItems = get().items;
-    get().commitHistory();
-
-    const item = createConfiguratorItem(product, snapPosition(position), variantProducts);
-    const nextRawItems = [...currentItems, item];
-    const nextItems = shouldDockComposition(get().sceneMode, get().settings)
-      ? getDockedCompositionItems(nextRawItems, get().sceneMode)
-      : nextRawItems;
-    const alignedItem = nextItems.find((currentItem) => currentItem.id === item.id);
-
-    set({
-      items: nextItems,
-      selectedItemId: alignedItem?.id || item.id,
-    });
-  },
-
-  selectItem: (itemId) => {
-    set({ selectedItemId: itemId });
-  },
-
-  updateItem: (itemId, data) => {
-    get().commitHistory();
-    set({
-      items: get().items.map((item) => {
-        if (item.id !== itemId) return item;
-
-        const updatedItem: ConfiguratorItem = {
+      canUndo: false,
+      configurationError: null,
+      // Prepara un solo snapshot per gesto; lo registra al primo movimento valido.
+      commitHistory: () => {
+        gestureSnapshot = cloneSnapshot(get());
+      },
+      dismissConfigurationError: () => set({ configurationError: null }),
+      hydrateSettings: () => {
+        if (get().settingsHydrated) return;
+        const settings = readStoredSettings();
+        const result = resolveComposition(
+          get().items,
+          get().sceneMode,
+          settings,
+        );
+        set(
+          result.error
+            ? { settingsHydrated: true, configurationError: result.error }
+            : { settings, items: result.items, settingsHydrated: true },
+        );
+      },
+      hydrateLocale: () => {
+        if (!get().localeHydrated)
+          set({ locale: readStoredLocale(), localeHydrated: true });
+      },
+      updateSettings: (settings) => {
+        commit({ settings: { ...get().settings, ...settings } });
+        writeStoredSettings(get().settings);
+        set({ settingsHydrated: true });
+      },
+      setLocale: (locale) => {
+        writeStoredLocale(locale);
+        set({ locale, localeHydrated: true });
+      },
+      setSceneMode: (sceneMode) => commit({ sceneMode }),
+      addProduct: (product, variants) =>
+        insert(
+          createConfiguratorItem(
+            product,
+            getNextPosition(get().items, product.width_mm),
+            variants,
+          ),
+        ),
+      addProductAtPosition: (product, position, variants) =>
+        insert(createConfiguratorItem(product, position, variants)),
+      selectItem: (selectedItemId) =>
+        set({
+          selectedItemId: get().items.some((item) => item.id === selectedItemId)
+            ? selectedItemId
+            : null,
+        }),
+      updateItem: (id, data) =>
+        changeItem(id, (item) => ({
           ...item,
           ...data,
-          position: data.position ? snapPosition(data.position) : item.position,
-        };
-
-        return updatedItem;
-      }),
-    });
-    if (shouldDockComposition(get().sceneMode, get().settings)) {
-      set({ items: getDockedCompositionItems(get().items, get().sceneMode) });
-    }
-  },
-
-  // Aggiorna solo le scelte anta dei moduli che possono avere una configurazione tecnica.
-  updateDoorConfiguration: (itemId, data) => {
-    get().commitHistory();
-    set({
-      items: get().items.map((item) => {
-        if (item.id !== itemId) return item;
-        if (
+          position: data.position
+            ? [data.position[0], item.position[1], data.position[2]]
+            : item.position,
+        })),
+      updateDoorConfiguration: (id, data) =>
+        changeItem(id, (item) =>
           !hasConfigurableModuleVariants(item.code) &&
           getProductVariantKeys(item.variantProducts).length <= 1
-        ) {
-          return item;
-        }
-
-        return {
+            ? item
+            : {
+                ...item,
+                doorConfiguration: {
+                  ...(item.doorConfiguration || DEFAULT_DOOR_CONFIGURATION),
+                  ...data,
+                },
+              },
+        ),
+      updateBaseFinishConfiguration: (id, data) =>
+        changeItem(id, (item) => ({
           ...item,
-          doorConfiguration: {
-            ...(item.doorConfiguration || DEFAULT_DOOR_CONFIGURATION),
+          baseFinishConfiguration: {
+            ...(item.baseFinishConfiguration ||
+              DEFAULT_BASE_FINISH_CONFIGURATION),
             ...data,
           },
-        };
-      }),
-    });
-  },
-
-  updateVariant: (itemId, variantKey) => {
-    get().commitHistory();
-    set({
-      items: get().items.map((item) => {
-        if (item.id !== itemId) return item;
-        const familyVariant = getSafeProductVariant(item.variantProducts, variantKey);
-        const variantProduct = getProductForVariant(
-          item.variantProducts,
-          variantKey
-        );
-
-        if (familyVariant && variantProduct) {
-          return createItemFromVariantProduct(
-            item,
-            variantProduct,
-            familyVariant
-          );
+        })),
+      updateVariant: (id, key) => {
+        const item = get().items.find((item) => item.id === id);
+        if (!item) return;
+        const product = item.variantProducts?.[key];
+        if (
+          getProductVariantKeys(item.variantProducts).length > 0 &&
+          !product
+        ) {
+          set({ configurationError: "variantUnavailable" });
+          return;
         }
-        if (!hasConfigurableModuleVariants(item.code)) return item;
-
-        return {
-          ...item,
-          variantKey: getSafeModuleVariant(item.code, variantKey),
-        };
-      }),
-    });
-  },
-
-  // Aggiorna gli optional tecnici della base senza modificare le quote del mobile.
-  updateBaseFinishConfiguration: (itemId, data) => {
-    get().commitHistory();
-    set({
-      items: get().items.map((item) =>
-        item.id === itemId
-          ? {
-              ...item,
-              baseFinishConfiguration: {
-                ...(item.baseFinishConfiguration ||
-                  DEFAULT_BASE_FINISH_CONFIGURATION),
-                ...data,
+        if (
+          !product &&
+          (key === "visible_left" ||
+            key === "visible_right" ||
+            !getAvailableModuleVariants(item.code).includes(
+              getTechnicalVariantKey(key),
+            ))
+        ) {
+          set({ configurationError: "variantUnavailable" });
+          return;
+        }
+        changeItem(id, (item) =>
+          product
+            ? createItemFromVariantProduct(item, product, key)
+            : {
+                ...item,
+                variantKey: getSafeModuleVariant(
+                  item.code,
+                  getTechnicalVariantKey(key),
+                ),
+                productVariantKey: key,
               },
-            }
-          : item
-      ),
-    });
-  },
-
-  updatePosition: (itemId, position, options = { recordHistory: true }) => {
-    if (options.recordHistory !== false) {
-      get().commitHistory();
-    }
-
-    set({
-      items: shouldDockComposition(get().sceneMode, get().settings)
-        ? getDockedItemsAfterMove(
-            get().items,
-            itemId,
-            snapPosition(position),
-            get().sceneMode
-          )
-        : get().items.map((item) =>
-            item.id === itemId
-              ? {
-                  ...item,
-                  position: getFreeMovementPosition(
-                    item,
-                    snapPosition(position)
-                  ),
-                }
-              : item
-          ),
-    });
-  },
-
-  duplicateItem: (itemId) => {
-    const sourceItem = get().items.find((item) => item.id === itemId);
-
-    if (!sourceItem) return;
-    get().commitHistory();
-
-    const duplicatedItem: ConfiguratorItem = {
-      ...sourceItem,
-      id: crypto.randomUUID(),
-      position: [
-        getNextPosition(get().items, sourceItem.widthMm)[0],
-        sourceItem.position[1],
-        sourceItem.position[2],
-      ],
+        );
+      },
+      updatePosition: (id, position, options) =>
+        move(id, position, options?.recordHistory !== false),
+      moveItem: (id, axis, value) => {
+        const item = get().items.find((item) => item.id === id);
+        if (item)
+          move(
+            id,
+            axis === "x"
+              ? [value, item.position[1], item.position[2]]
+              : [item.position[0], item.position[1], value],
+          );
+      },
+      duplicateItem: (id) => {
+        const item = get().items.find((item) => item.id === id);
+        if (item)
+          insert({
+            ...item,
+            id: crypto.randomUUID(),
+            position: [
+              getNextPosition(get().items, item.widthMm)[0],
+              item.position[1],
+              item.position[2],
+            ],
+          });
+      },
+      rotateItem: (id) =>
+        changeItem(id, (item) => ({
+          ...item,
+          rotationY: normalizeRotation(item.rotationY + 90),
+        })),
+      removeItem: (id) => {
+        const state = get();
+        commit({
+          items: state.items.filter((item) => item.id !== id),
+          selectedItemId:
+            state.selectedItemId === id ? null : state.selectedItemId,
+        });
+      },
+      clear: () => commit({ items: [], selectedItemId: null }),
+      undo: () => restore("undo"),
+      redo: () => restore("redo"),
     };
-    const nextRawItems = [...get().items, duplicatedItem];
-    const nextItems = shouldDockComposition(get().sceneMode, get().settings)
-      ? getDockedCompositionItems(nextRawItems, get().sceneMode)
-      : nextRawItems;
-    const alignedDuplicatedItem = nextItems.find(
-      (item) => item.id === duplicatedItem.id
-    );
+  });
+}
 
-    set({
-      items: nextItems,
-      selectedItemId: alignedDuplicatedItem?.id || duplicatedItem.id,
-    });
-  },
-
-  rotateItem: (itemId) => {
-    get().commitHistory();
-    set({
-      items: get().items.map((item) => {
-        if (item.id !== itemId) return item;
-
-        const rotatedItem = {
-          ...item,
-          rotationY: normalizeRotation((item.rotationY || 0) + 90),
-        };
-
-        return rotatedItem;
-      }),
-    });
-    if (shouldDockComposition(get().sceneMode, get().settings)) {
-      set({ items: getDockedCompositionItems(get().items, get().sceneMode) });
-    }
-  },
-
-  moveItem: (itemId, axis, value) => {
-    get().commitHistory();
-    set({
-      items: get().items.map((item) => {
-        if (item.id !== itemId) return item;
-
-        const [x, y, z] = item.position;
-
-        const movedItem = {
-          ...item,
-          position: snapPosition(axis === "x" ? [value, y, z] : [x, y, value]),
-        };
-
-        return movedItem;
-      }),
-    });
-    if (shouldDockComposition(get().sceneMode, get().settings)) {
-      set({ items: getDockedCompositionItems(get().items, get().sceneMode) });
-    }
-  },
-
-  removeItem: (itemId) => {
-    get().commitHistory();
-    const items = get().items.filter((item) => item.id !== itemId);
-    const selectedItemId =
-      get().selectedItemId === itemId ? null : get().selectedItemId;
-
-    set({
-      items: shouldDockComposition(get().sceneMode, get().settings)
-        ? getDockedCompositionItems(items, get().sceneMode)
-        : items,
-      selectedItemId,
-    });
-  },
-
-  clear: () => {
-    if (get().items.length === 0) return;
-    get().commitHistory();
-    set({ items: [], selectedItemId: null });
-  },
-
-  undo: () => {
-    const { future, items, past, selectedItemId } = get();
-    const previousSnapshot = past[past.length - 1];
-
-    if (!previousSnapshot) return;
-
-    const nextPast = past.slice(0, -1);
-
-    set({
-      items: previousSnapshot.items,
-      selectedItemId: previousSnapshot.selectedItemId,
-      past: nextPast,
-      future: [...future, cloneSnapshot({ items, selectedItemId })],
-      canUndo: nextPast.length > 0,
-      canRedo: true,
-    });
-  },
-
-  redo: () => {
-    const { future, items, past, selectedItemId } = get();
-    const nextSnapshot = future[future.length - 1];
-
-    if (!nextSnapshot) return;
-
-    const nextFuture = future.slice(0, -1);
-
-    set({
-      items: nextSnapshot.items,
-      selectedItemId: nextSnapshot.selectedItemId,
-      past: [...past, cloneSnapshot({ items, selectedItemId })],
-      future: nextFuture,
-      canUndo: true,
-      canRedo: nextFuture.length > 0,
-    });
-  },
-}));
+export const useConfiguratorStore = createConfiguratorStore();
 
 // Clona gli snapshot per evitare che undo/redo condividano riferimenti mutabili.
 function cloneSnapshot(
-  snapshot: ConfiguratorHistorySnapshot
+  snapshot: ConfiguratorHistorySnapshot,
 ): ConfiguratorHistorySnapshot {
   return {
     items: snapshot.items.map((item) => ({
       ...item,
-      doorConfiguration: item.doorConfiguration
-        ? { ...item.doorConfiguration }
-        : undefined,
-      baseFinishConfiguration: item.baseFinishConfiguration
-        ? { ...item.baseFinishConfiguration }
-        : undefined,
+      ...(item.doorConfiguration
+        ? { doorConfiguration: { ...item.doorConfiguration } }
+        : {}),
+      ...(item.baseFinishConfiguration
+        ? { baseFinishConfiguration: { ...item.baseFinishConfiguration } }
+        : {}),
       position: [...item.position],
-      variantProducts: item.variantProducts ? { ...item.variantProducts } : undefined,
+      ...(item.variantProducts
+        ? { variantProducts: { ...item.variantProducts } }
+        : {}),
     })),
     selectedItemId: snapshot.selectedItemId,
+    sceneMode: snapshot.sceneMode,
+    settings: { ...snapshot.settings },
   };
 }
 
@@ -489,13 +459,13 @@ function cloneSnapshot(
 function createConfiguratorItem(
   product: Product,
   position: [number, number, number],
-  variantProducts?: ProductVariantProducts
+  variantProducts?: ProductVariantProducts,
 ): ConfiguratorItem {
-  const initialPosition = snapPosition([
+  const initialPosition: [number, number, number] = [
     position[0],
     isWallUnitProduct(product) ? getWallUnitSceneBottom() : position[1],
     position[2],
-  ]);
+  ];
 
   return {
     id: crypto.randomUUID(),
@@ -510,16 +480,20 @@ function createConfiguratorItem(
     modelUrl: product.model_url,
     position: initialPosition,
     rotationY: 0,
-    variantKey:
-      getSafeProductVariant(variantProducts, DEFAULT_MODULE_VARIANT) ||
-      getSafeModuleVariant(product.code, DEFAULT_MODULE_VARIANT),
+    variantKey: getSafeModuleVariant(
+      product.code,
+      getTechnicalVariantKey(getProductVariantKey(product, variantProducts)),
+    ),
+    productVariantKey: getProductVariantKey(product, variantProducts),
     variantProducts:
-      getProductVariantKeys(variantProducts).length > 1 ? variantProducts : undefined,
+      getProductVariantKeys(variantProducts).length > 0
+        ? variantProducts
+        : undefined,
     doorConfiguration:
       getProductVariantKeys(variantProducts).length > 1 ||
       hasConfigurableModuleVariants(product.code)
-      ? { ...DEFAULT_DOOR_CONFIGURATION }
-      : undefined,
+        ? { ...DEFAULT_DOOR_CONFIGURATION }
+        : undefined,
     color: "#d8d3c7",
   };
 }
@@ -528,7 +502,7 @@ function createConfiguratorItem(
 function createItemFromVariantProduct(
   item: ConfiguratorItem,
   product: Product,
-  variantKey: ModuleVariantKey
+  variantKey: ProductVariantKey,
 ): ConfiguratorItem {
   return {
     ...item,
@@ -536,12 +510,10 @@ function createItemFromVariantProduct(
     nameIt: product.name_it,
     nameEn: product.name_en,
     code: product.code,
-    widthMm: product.width_mm,
-    heightMm: product.height_mm,
-    depthMm: product.depth_mm,
     price: product.price,
     modelUrl: product.model_url,
-    variantKey,
+    variantKey: getTechnicalVariantKey(variantKey),
+    productVariantKey: variantKey,
   };
 }
 
@@ -551,7 +523,7 @@ function readStoredSettings(): ConfiguratorSettings {
 
   try {
     const storedSettings = window.localStorage.getItem(
-      CONFIGURATOR_SETTINGS_STORAGE_KEY
+      CONFIGURATOR_SETTINGS_STORAGE_KEY,
     );
     const parsedSettings = storedSettings
       ? (JSON.parse(storedSettings) as Partial<ConfiguratorSettings>)
@@ -560,7 +532,7 @@ function readStoredSettings(): ConfiguratorSettings {
     return {
       ...DEFAULT_CONFIGURATOR_SETTINGS,
       allowFreeMovementInOpenScene: Boolean(
-        parsedSettings?.allowFreeMovementInOpenScene
+        parsedSettings?.allowFreeMovementInOpenScene,
       ),
       showSceneDataOnStart: Boolean(parsedSettings?.showSceneDataOnStart),
     };
@@ -573,7 +545,12 @@ function readStoredSettings(): ConfiguratorSettings {
 function readStoredLocale(): Locale {
   if (typeof window === "undefined") return "it";
 
-  const storedLocale = window.localStorage.getItem(CONFIGURATOR_LOCALE_STORAGE_KEY);
+  let storedLocale: string | null = null;
+  try {
+    storedLocale = window.localStorage.getItem(CONFIGURATOR_LOCALE_STORAGE_KEY);
+  } catch {
+    return "it";
+  }
 
   return storedLocale === "en" || storedLocale === "fr" || storedLocale === "it"
     ? storedLocale
@@ -584,27 +561,23 @@ function readStoredLocale(): Locale {
 function writeStoredSettings(settings: ConfiguratorSettings) {
   if (typeof window === "undefined") return;
 
-  window.localStorage.setItem(
-    CONFIGURATOR_SETTINGS_STORAGE_KEY,
-    JSON.stringify(settings)
-  );
+  try {
+    window.localStorage.setItem(
+      CONFIGURATOR_SETTINGS_STORAGE_KEY,
+      JSON.stringify(settings),
+    );
+  } catch {
+    /* Il blocco dello storage non deve interrompere le modifiche in memoria. */
+  }
 }
 
 // Salva la lingua in modo che resti disponibile in tutte le sezioni dell'app.
 function writeStoredLocale(locale: Locale) {
   if (typeof window === "undefined") return;
 
-  window.localStorage.setItem(CONFIGURATOR_LOCALE_STORAGE_KEY, locale);
-}
-
-// Applica il movimento libero solo al piano X/Z e preserva la quota verticale del modulo.
-function getFreeMovementPosition(
-  item: ConfiguratorItem,
-  position: [number, number, number]
-) {
-  return clampItemPositionToGridBounds(item, [
-    position[0],
-    item.position[1],
-    position[2],
-  ]);
+  try {
+    window.localStorage.setItem(CONFIGURATOR_LOCALE_STORAGE_KEY, locale);
+  } catch {
+    /* La lingua resta utilizzabile nella sessione corrente. */
+  }
 }

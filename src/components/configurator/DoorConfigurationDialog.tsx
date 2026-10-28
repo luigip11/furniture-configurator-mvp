@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, X } from "lucide-react";
 import { dictionary } from "@/lib/i18n/dictionary";
@@ -82,11 +82,23 @@ export function DoorConfigurationDialog({
   onChange,
   onClose,
 }: DoorConfigurationDialogProps) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const stepHeadingRef = useRef<HTMLHeadingElement>(null);
   const [activeStep, setActiveStep] = useState(0);
   const [configuration, setConfiguration] = useState<DoorConfiguration>(() => ({
     ...initialConfiguration,
   }));
   const t = dictionary[locale];
+  // Il dialog nativo confina il focus e lo restituisce al comando di apertura prima dello smontaggio.
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current;
+    dialog?.showModal();
+    return () => dialog?.close();
+  }, []);
+  // Porta la lettura e la tabulazione al contenuto del passaggio appena selezionato.
+  useEffect(() => {
+    stepHeadingRef.current?.focus();
+  }, [activeStep]);
   const configurationSummary = getDoorConfigurationSummary(
     configuration,
     locale,
@@ -129,20 +141,27 @@ export function DoorConfigurationDialog({
     onClose();
   };
   const dialog = (
-    <div
-      className="fixed inset-0 flex items-center justify-center bg-black/60 p-4"
-      role="presentation"
-      style={{ zIndex: 2147483647 }}
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
+    <dialog
+      ref={dialogRef}
+      aria-labelledby="door-dialog-title"
+      className="m-auto max-h-[92dvh] w-[calc(100%-2rem)] max-w-6xl overflow-hidden rounded-2xl border-0 bg-white p-0 text-gray-950 shadow-2xl backdrop:bg-black/60"
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+      onClick={(event) => {
+        if (event.target !== event.currentTarget) return;
+        const bounds = event.currentTarget.getBoundingClientRect();
+        if (
+          event.clientX < bounds.left ||
+          event.clientX > bounds.right ||
+          event.clientY < bounds.top ||
+          event.clientY > bounds.bottom
+        )
+          onClose();
       }}
     >
-      <section
-        aria-labelledby="door-dialog-title"
-        className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
-        role="dialog"
-        aria-modal="true"
-      >
+      <section className="flex max-h-[92dvh] w-full flex-col overflow-hidden">
         <header className="flex items-start justify-between gap-4 border-b px-5 py-4">
           <div className="min-w-0">
             <h2 id="door-dialog-title" className="text-lg font-semibold">
@@ -215,7 +234,11 @@ export function DoorConfigurationDialog({
                 <p className="text-xs font-semibold uppercase text-blue-700">
                   {activeStep + 1} / {steps.length}
                 </p>
-                <h3 className="mt-1 text-xl font-semibold text-gray-900">
+                <h3
+                  ref={stepHeadingRef}
+                  tabIndex={-1}
+                  className="mt-1 text-xl font-semibold text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                >
                   {activeStepData.label}
                 </h3>
                 <p className="mt-1 text-sm text-gray-500">
@@ -315,7 +338,7 @@ export function DoorConfigurationDialog({
           </div>
         </footer>
       </section>
-    </div>
+    </dialog>
   );
 
   if (typeof document === "undefined") return null;

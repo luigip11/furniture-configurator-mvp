@@ -31,7 +31,7 @@ export function ConfiguratorAdmin() {
           <div className="flex flex-col gap-3 border-b border-gray-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-medium text-gray-500">
-                {t.sceneBehavior}
+                {t.browserSettingsTitle}
               </p>
               <h2 className="mt-1 text-xl font-semibold">
                 {t.configuratorSettings}
@@ -42,6 +42,10 @@ export function ConfiguratorAdmin() {
               {t.controlledDefault}
             </span>
           </div>
+
+          <p className="mt-4 rounded-lg bg-blue-50 p-3 text-sm leading-relaxed text-blue-900">
+            {t.browserSettingsHint}
+          </p>
 
           <div className="mt-4 space-y-3">
             <SettingToggle
@@ -124,11 +128,11 @@ function SettingToggle({
         type="checkbox"
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
-        className="sr-only"
+        className="peer sr-only"
       />
       <span
         aria-hidden="true"
-        className={`flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition ${
+        className={`flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition peer-focus-visible:ring-2 peer-focus-visible:ring-blue-600 peer-focus-visible:ring-offset-2 ${
           checked ? "bg-blue-600" : "bg-gray-300"
         }`}
       >

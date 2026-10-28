@@ -1,26 +1,21 @@
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-
-type PublishPayload = {
-  is_published?: unknown;
-};
+import { validatedRecord, validatedUuid } from "@/lib/admin/input-validation";
+import { readAdminJson, adminInputError } from "@/lib/admin/request-body";
 
 // Aggiorna lo stato di pubblicazione dal server, così il configuratore legge un valore persistito.
 export async function PATCH(
   request: Request,
-  context: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await context.params;
-  const payload = (await request.json().catch(() => null)) as PublishPayload | null;
-
-  if (!id) {
-    return Response.json({ message: "Prodotto non valido." }, { status: 400 });
-  }
-
-  if (typeof payload?.is_published !== "boolean") {
-    return Response.json(
-      { message: "Stato pubblicazione non valido." },
-      { status: 400 }
-    );
+  let id, payload;
+  try {
+    id = validatedUuid((await context.params).id);
+    if (!id) throw new Error("Prodotto non valido.");
+    payload = validatedRecord(await readAdminJson(request), ["is_published"]);
+    if (typeof payload.is_published !== "boolean")
+      throw new Error("Stato pubblicazione non valido.");
+  } catch (error) {
+    return adminInputError(error);
   }
 
   const { data, error } = await getSupabaseAdmin()

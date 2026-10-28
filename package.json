@@ -9,7 +9,9 @@
     "lint": "eslint",
     "test": "node --experimental-strip-types --test tests/**/*.test.ts",
     "test:python": "python3 -m unittest discover -s tests -p '*_test.py'",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:browser": "node --test tests/browser/*.test.mjs",
+    "audit:assets": "node --experimental-strip-types tools/audit-product-assets.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
@@ -32,6 +34,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "playwright": "^1.62.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

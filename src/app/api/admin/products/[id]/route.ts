@@ -1,36 +1,39 @@
-import { readProductPayload } from "@/app/api/admin/products/route";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import {
+  readProductSubmission,
+  productWriteError,
+} from "@/lib/admin/product-submission";
+import { validatedUuid } from "@/lib/admin/input-validation";
+import { adminInputError } from "@/lib/admin/request-body";
 
-// Aggiorna un prodotto admin dal server, restituendo la riga persistita.
+// Aggiorna una riga valida senza accettare identificatori o proprietà arbitrarie.
 export async function PATCH(
   request: Request,
-  context: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await context.params;
-  const payload = await readProductPayload(request);
-
-  if (!id) {
-    return Response.json({ message: "Prodotto non valido." }, { status: 400 });
+  let id, payload;
+  try {
+    id = validatedUuid((await context.params).id);
+    if (!id) throw new Error("Prodotto non valido.");
+    payload = await readProductSubmission(request);
+  } catch (error) {
+    return adminInputError(error);
   }
-
-  if ("message" in payload) {
-    return Response.json({ message: payload.message }, { status: 400 });
+  try {
+    const { data, error } = await getSupabaseAdmin()
+      .from("products")
+      .update(payload)
+      .eq("id", id)
+      .select("*")
+      .maybeSingle();
+    if (error) return productWriteError(error);
+    if (!data)
+      return Response.json(
+        { message: "Prodotto non trovato." },
+        { status: 404 },
+      );
+    return Response.json({ product: data });
+  } catch {
+    return productWriteError({});
   }
-
-  const { data, error } = await getSupabaseAdmin()
-    .from("products")
-    .update(payload)
-    .eq("id", id)
-    .select("*")
-    .maybeSingle();
-
-  if (error) {
-    return Response.json({ message: error.message }, { status: 500 });
-  }
-
-  if (!data) {
-    return Response.json({ message: "Prodotto non trovato." }, { status: 404 });
-  }
-
-  return Response.json({ product: data });
 }

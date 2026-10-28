@@ -23,7 +23,7 @@ export function ConfiguratorHeader() {
         <h1 className="text-xl font-bold leading-tight">{t.configurator}</h1>
       </div>
 
-      <div className="flex w-full items-center justify-between gap-2 md:w-auto md:justify-end">
+      <div className="flex w-full flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between md:w-auto md:justify-end">
         <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
           {!customerPreview ? (
             <Link

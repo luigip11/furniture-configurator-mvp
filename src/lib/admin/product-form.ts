@@ -1,6 +1,7 @@
 import type { Product } from "@/types/configurator";
 
 import { optionalNumber, optionalText, requiredNumber } from "./shared-form.ts";
+import { validateProductPayload } from "./product-validation.ts";
 
 export type ProductFormValues = {
   category_id: string;
@@ -18,7 +19,7 @@ export type ProductFormValues = {
   is_published: boolean;
 };
 
-export type ProductPayload = Omit<Product, "id">;
+export type ProductPayload = Pick<Product, keyof ProductFormValues>;
 
 export const emptyProductForm: ProductFormValues = {
   category_id: "",
@@ -69,7 +70,7 @@ export function buildProductPayload(form: ProductFormValues): ProductPayload {
     throw new Error("Nome IT obbligatorio.");
   }
 
-  return {
+  return validateProductPayload({
     category_id: optionalText(form.category_id),
     name_it: nameIt,
     name_en: optionalText(form.name_en),
@@ -83,5 +84,5 @@ export function buildProductPayload(form: ProductFormValues): ProductPayload {
     model_url: optionalText(form.model_url),
     technical_file_url: optionalText(form.technical_file_url),
     is_published: form.is_published,
-  };
+  });
 }

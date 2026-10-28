@@ -2,7 +2,15 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FolderTree, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import {
+  FolderTree,
+  Loader2,
+  Pencil,
+  Plus,
+  Save,
+  Trash2,
+  X,
+} from "lucide-react";
 
 import {
   buildCategoryPayload,
@@ -26,18 +34,18 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
   const [categories, setCategories] = useState(initialCategories);
   const [form, setForm] = useState<CategoryFormValues>(emptyCategoryForm);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(
-    null
+    null,
   );
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const editingCategory = categories.find(
-    (category) => category.id === editingCategoryId
+    (category) => category.id === editingCategoryId,
   );
 
   function updateForm<Key extends keyof CategoryFormValues>(
     key: Key,
-    value: CategoryFormValues[Key]
+    value: CategoryFormValues[Key],
   ) {
     setForm((currentForm) => ({ ...currentForm, [key]: value }));
   }
@@ -49,6 +57,7 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
   }
 
   function startEdit(category: Category) {
+    if (isSaving) return;
     setForm(categoryToForm(category));
     setEditingCategoryId(category.id);
     setErrorMessage(null);
@@ -62,48 +71,33 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
     try {
       const payload = buildCategoryPayload(form);
 
-      if (editingCategoryId) {
-        const { data, error } = await supabase
-          .from("categories")
-          .update(payload)
-          .eq("id", editingCategoryId)
-          .select("*")
-          .single();
-
-        if (error) {
-          throw error;
-        }
-
-        const savedCategory = data as Category;
-        setCategories((currentCategories) =>
-          currentCategories.map((category) =>
-            category.id === savedCategory.id ? savedCategory : category
-          )
-        );
-      } else {
-        const { data, error } = await supabase
-          .from("categories")
-          .insert(payload)
-          .select("*")
-          .single();
-
-        if (error) {
-          throw error;
-        }
-
-        setCategories((currentCategories) => [
-          data as Category,
-          ...currentCategories,
-        ]);
-      }
+      const response = await fetch(
+        editingCategoryId
+          ? `/api/admin/categories/${editingCategoryId}`
+          : "/api/admin/categories",
+        {
+          method: editingCategoryId ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.category)
+        throw new Error(result?.message || t.saveCategoryError);
+      const savedCategory = result.category as Category;
+      setCategories((current) =>
+        editingCategoryId
+          ? current.map((category) =>
+              category.id === savedCategory.id ? savedCategory : category,
+            )
+          : [savedCategory, ...current],
+      );
 
       resetForm();
       router.refresh();
     } catch (error) {
       setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : t.saveCategoryError
+        error instanceof Error ? error.message : t.saveCategoryError,
       );
     } finally {
       setIsSaving(false);
@@ -111,9 +105,8 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
   }
 
   async function deleteCategory(category: Category) {
-    const confirmed = window.confirm(
-      t.deleteCategory(category.name)
-    );
+    if (isSaving) return;
+    const confirmed = window.confirm(t.deleteCategory(category.name));
 
     if (!confirmed) {
       return;
@@ -133,8 +126,8 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
 
     setCategories((currentCategories) =>
       currentCategories.filter(
-        (currentCategory) => currentCategory.id !== category.id
-      )
+        (currentCategory) => currentCategory.id !== category.id,
+      ),
     );
 
     if (editingCategoryId === category.id) {
@@ -160,9 +153,7 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
         </div>
 
         {categories.length === 0 ? (
-          <p className="p-4 text-sm text-gray-500">
-            {t.noCategories}
-          </p>
+          <p className="p-4 text-sm text-gray-500">{t.noCategories}</p>
         ) : (
           <div className="divide-y divide-gray-100">
             {categories.map((category) => (
@@ -192,6 +183,7 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
                   <div className="flex shrink-0 flex-wrap gap-2">
                     <button
                       type="button"
+                      disabled={isSaving}
                       onClick={() => startEdit(category)}
                       className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition hover:border-gray-300 hover:bg-gray-50"
                     >
@@ -200,6 +192,7 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
                     </button>
                     <button
                       type="button"
+                      disabled={isSaving}
                       onClick={() => deleteCategory(category)}
                       className="inline-flex h-9 items-center gap-2 rounded-lg border border-red-200 px-3 text-sm font-medium text-red-700 transition hover:border-red-300 hover:bg-red-50"
                     >
@@ -218,78 +211,85 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
         onSubmit={handleSubmit}
         className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto"
       >
-        <div className="-mx-4 -mt-4 mb-4 flex items-start justify-between gap-3 rounded-t-2xl border-b border-gray-200 bg-gray-50 px-4 py-4">
-          <div>
-            <h2 className="text-lg font-semibold">
-              {editingCategory ? t.editCategory : t.newCategory}
-            </h2>
+        <fieldset disabled={isSaving}>
+          <div className="-mx-4 -mt-4 mb-4 flex items-start justify-between gap-3 rounded-t-2xl border-b border-gray-200 bg-gray-50 px-4 py-4">
+            <div>
+              <h2 className="text-lg font-semibold">
+                {editingCategory ? t.editCategory : t.newCategory}
+              </h2>
+              {editingCategory ? (
+                <p className="mt-1 text-sm text-gray-500">
+                  {editingCategory.name}
+                </p>
+              ) : null}
+            </div>
             {editingCategory ? (
-              <p className="mt-1 text-sm text-gray-500">
-                {editingCategory.name}
-              </p>
+              <button
+                type="button"
+                onClick={resetForm}
+                className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+                {t.cancel}
+              </button>
             ) : null}
           </div>
-          {editingCategory ? (
-            <button
-              type="button"
-              onClick={resetForm}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+
+          {errorMessage ? (
+            <p
+              role="alert"
+              className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"
             >
-              <X className="h-4 w-4" aria-hidden="true" />
-              {t.cancel}
-            </button>
+              {errorMessage}
+            </p>
           ) : null}
-        </div>
 
-        {errorMessage ? (
-          <p className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {errorMessage}
-          </p>
-        ) : null}
-
-        <div className="space-y-4">
-          <TextField
-            label={t.name}
-            value={form.name}
-            onChange={(value) => updateForm("name", value)}
-            required
-          />
-          <TextField
-            label="Slug"
-            value={form.slug}
-            onChange={(value) => updateForm("slug", value)}
-          />
-          <label className="block text-sm font-medium text-gray-700">
-            {t.description}
-            <textarea
-              value={form.description}
-              onChange={(event) => updateForm("description", event.target.value)}
-              rows={4}
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-100"
+          <div className="space-y-4">
+            <TextField
+              label={t.name}
+              value={form.name}
+              onChange={(value) => updateForm("name", value)}
+              required
             />
-          </label>
-          <TextField
-            label={t.order}
-            value={form.sort_order}
-            onChange={(value) => updateForm("sort_order", value)}
-            type="number"
-          />
+            <TextField
+              label="Slug"
+              value={form.slug}
+              onChange={(value) => updateForm("slug", value)}
+            />
+            <label className="block text-sm font-medium text-gray-700">
+              {t.description}
+              <textarea
+                value={form.description}
+                onChange={(event) =>
+                  updateForm("description", event.target.value)
+                }
+                rows={4}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-100"
+              />
+            </label>
+            <TextField
+              label={t.order}
+              value={form.sort_order}
+              onChange={(value) => updateForm("sort_order", value)}
+              type="number"
+            />
 
-          <button
-            type="submit"
-            disabled={isSaving}
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gray-700 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-400"
-          >
-            {isSaving ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            ) : editingCategory ? (
-              <Save className="h-4 w-4" aria-hidden="true" />
-            ) : (
-              <Plus className="h-4 w-4" aria-hidden="true" />
-            )}
-            {editingCategory ? t.saveChanges : t.createCategory}
-          </button>
-        </div>
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gray-700 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-400"
+            >
+              {isSaving ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : editingCategory ? (
+                <Save className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <Plus className="h-4 w-4" aria-hidden="true" />
+              )}
+              {editingCategory ? t.saveChanges : t.createCategory}
+            </button>
+          </div>
+        </fieldset>
       </form>
     </section>
   );

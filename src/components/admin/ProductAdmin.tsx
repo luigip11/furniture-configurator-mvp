@@ -4,7 +4,6 @@ import { ChangeEvent, FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Box,
-  CheckCircle2,
   ChevronDown,
   Eye,
   EyeOff,
@@ -16,23 +15,31 @@ import {
   Save,
   Search,
   Trash2,
-  Upload,
   X,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase/client";
 import type { Category, Product } from "@/types/configurator";
 import {
-  buildProductPayload,
   emptyProductForm,
   productToForm,
   type ProductFormValues,
 } from "@/lib/admin/product-form";
 import {
-  getProductAssetAccept,
-  uploadProductAsset,
+  validateProductAssetContent,
   type ProductAssetField,
 } from "@/lib/admin/product-assets";
+import {
+  uploadProductAsset,
+  cleanupProductAssets,
+} from "@/lib/admin/product-asset-client";
+import {
+  saveProductWithAssets,
+  ProductSaveUncertainError,
+  type PendingProductFiles,
+} from "@/lib/admin/product-save";
+import { ProductAssetFieldInput } from "./ProductAssetFieldInput";
+import { adminWorkflowDictionary } from "@/lib/i18n/admin-workflow-dictionary";
 import {
   filterAndSortAdminProducts,
   type ProductSortOrder,
@@ -52,6 +59,8 @@ export function ProductAdmin({
   const locale = useConfiguratorStore((state) => state.locale);
   const t = adminDictionary[locale];
   const router = useRouter();
+  const workflow = adminWorkflowDictionary[locale];
+  const [pendingFiles, setPendingFiles] = useState<PendingProductFiles>({});
   const [products, setProducts] = useState(initialProducts);
   const [form, setForm] = useState<ProductFormValues>(emptyProductForm);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
@@ -59,9 +68,8 @@ export function ProductAdmin({
   const [sortOrder, setSortOrder] = useState<ProductSortOrder>("newest");
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [searchText, setSearchText] = useState("");
-  const [uploadingField, setUploadingField] = useState<ProductAssetField | null>(
-    null
-  );
+  const [uploadingField, setUploadingField] =
+    useState<ProductAssetField | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const categoryById = useMemo(() => {
@@ -69,7 +77,7 @@ export function ProductAdmin({
   }, [categories]);
   const categoryNameById = useMemo(() => {
     return new Map(
-      categories.map((category) => [category.id, category.name] as const)
+      categories.map((category) => [category.id, category.name] as const),
     );
   }, [categories]);
   const visibleProducts = useMemo(
@@ -79,28 +87,32 @@ export function ProductAdmin({
         searchText,
         sortOrder,
       }),
-    [categoryNameById, products, searchText, sortOrder]
+    [categoryNameById, products, searchText, sortOrder],
   );
   const hasActiveSearch = searchText.trim().length > 0;
 
   const editingProduct = products.find(
-    (product) => product.id === editingProductId
+    (product) => product.id === editingProductId,
   );
 
   function updateForm<Key extends keyof ProductFormValues>(
     key: Key,
-    value: ProductFormValues[Key]
+    value: ProductFormValues[Key],
   ) {
     setForm((currentForm) => ({ ...currentForm, [key]: value }));
   }
 
   function resetForm() {
     setForm(emptyProductForm);
+    setPendingFiles({});
     setEditingProductId(null);
     setErrorMessage(null);
   }
 
+  // Abbandona solo file locali; durante un salvataggio non cambia il prodotto di destinazione.
   function startEdit(product: Product) {
+    if (isSaving || uploadingField) return;
+    setPendingFiles({});
     setForm(productToForm(product));
     setEditingProductId(product.id);
     setErrorMessage(null);
@@ -123,56 +135,61 @@ export function ProductAdmin({
     setErrorMessage(null);
 
     try {
-      const payload = buildProductPayload(form);
-
-      if (editingProductId) {
-        const response = await fetch(`/api/admin/products/${editingProductId}`, {
-          body: JSON.stringify(payload),
-          headers: {
-            "Content-Type": "application/json",
-          },
-          method: "PATCH",
-        });
-        const result = (await response.json().catch(() => null)) as
-          | { message?: string; product?: Product }
-          | null;
-
-        if (!response.ok || !result?.product) {
-          throw new Error(result?.message || t.saveProductError);
-        }
-
-        const savedProduct = result.product;
-        setProducts((currentProducts) =>
-          currentProducts.map((product) =>
-            product.id === savedProduct.id ? savedProduct : product
-          )
-        );
-      } else {
-        const response = await fetch("/api/admin/products", {
-          body: JSON.stringify(payload),
-          headers: {
-            "Content-Type": "application/json",
-          },
-          method: "POST",
-        });
-        const result = (await response.json().catch(() => null)) as
-          | { message?: string; product?: Product }
-          | null;
-
-        if (!response.ok || !result?.product) {
-          throw new Error(result?.message || t.createProductError);
-        }
-
-        setProducts((currentProducts) => [result.product as Product, ...currentProducts]);
-      }
+      const savedProduct = await saveProductWithAssets(form, pendingFiles, {
+        upload: async (field, file, onPrepared) => {
+          setUploadingField(field);
+          try {
+            return await uploadProductAsset({
+              field,
+              file,
+              productCode: form.code,
+              onPrepared,
+            });
+          } finally {
+            setUploadingField(null);
+          }
+        },
+        save: async (payload, receipts) => {
+          let response;
+          try {
+            response = await fetch(
+              editingProductId
+                ? `/api/admin/products/${editingProductId}`
+                : "/api/admin/products",
+              {
+                method: editingProductId ? "PATCH" : "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ...payload, uploadReceipts: receipts }),
+              },
+            );
+          } catch {
+            throw new ProductSaveUncertainError(workflow.uncertainSave);
+          }
+          const result = await response.json().catch(() => null);
+          if (!response.ok) {
+            if (response.status >= 500 && result?.outcome !== "rejected")
+              throw new ProductSaveUncertainError(workflow.uncertainSave);
+            throw new Error(result?.message || t.saveProductError);
+          }
+          if (!result?.product)
+            throw new ProductSaveUncertainError(workflow.uncertainSave);
+          return result.product as Product;
+        },
+        cleanup: cleanupProductAssets,
+      });
+      setProducts((current) =>
+        editingProductId
+          ? current.map((product) =>
+              product.id === savedProduct.id ? savedProduct : product,
+            )
+          : [savedProduct, ...current],
+      );
 
       resetForm();
       router.refresh();
     } catch (error) {
       setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : t.saveProductError
+        error instanceof Error ? error.message : t.saveProductError,
       );
     } finally {
       setIsSaving(false);
@@ -180,6 +197,7 @@ export function ProductAdmin({
   }
 
   async function togglePublished(product: Product) {
+    if (isSaving || uploadingField) return;
     setErrorMessage(null);
     const nextPublishedValue = !product.is_published;
 
@@ -190,30 +208,29 @@ export function ProductAdmin({
       },
       method: "PATCH",
     });
-    const result = (await response.json().catch(() => null)) as
-      | { message?: string; product?: Product }
-      | null;
+    const result = (await response.json().catch(() => null)) as {
+      message?: string;
+      product?: Product;
+    } | null;
 
     if (!response.ok || !result?.product) {
-      setErrorMessage(
-        result?.message || t.publishError
-      );
+      setErrorMessage(result?.message || t.publishError);
       return;
     }
 
     const savedProduct = result.product;
     setProducts((currentProducts) =>
       currentProducts.map((currentProduct) =>
-        currentProduct.id === savedProduct.id ? savedProduct : currentProduct
-      )
+        currentProduct.id === savedProduct.id ? savedProduct : currentProduct,
+      ),
     );
     router.refresh();
   }
 
-  // Carica un asset prodotto su Supabase Storage e aggiorna il campo URL relativo.
+  // Valida e trattiene il file nel browser: nessun upload prima del salvataggio del prodotto.
   async function handleAssetUpload(
     field: ProductAssetField,
-    event: ChangeEvent<HTMLInputElement>
+    event: ChangeEvent<HTMLInputElement>,
   ) {
     const file = event.target.files?.[0];
 
@@ -225,28 +242,18 @@ export function ProductAdmin({
     setErrorMessage(null);
 
     try {
-      const publicUrl = await uploadProductAsset({
-        field,
-        file,
-        productCode: form.code || editingProduct?.code,
-      });
-
-      updateForm(field, publicUrl);
+      await validateProductAssetContent(field, file);
+      setPendingFiles((current) => ({ ...current, [field]: file }));
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : t.uploadError
-      );
+      setErrorMessage(error instanceof Error ? error.message : t.uploadError);
     } finally {
       setUploadingField(null);
     }
   }
 
   async function deleteProduct(product: Product) {
-    const confirmed = window.confirm(
-      t.deleteProduct(product.name_it)
-    );
+    if (isSaving || uploadingField) return;
+    const confirmed = window.confirm(t.deleteProduct(product.name_it));
 
     if (!confirmed) {
       return;
@@ -265,7 +272,9 @@ export function ProductAdmin({
     }
 
     setProducts((currentProducts) =>
-      currentProducts.filter((currentProduct) => currentProduct.id !== product.id)
+      currentProducts.filter(
+        (currentProduct) => currentProduct.id !== product.id,
+      ),
     );
 
     if (editingProductId === product.id) {
@@ -304,10 +313,12 @@ export function ProductAdmin({
               />
             </div>
             <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-emerald-700 ring-1 ring-emerald-100">
-              {products.filter((product) => product.is_published).length} {t.online}
+              {products.filter((product) => product.is_published).length}{" "}
+              {t.online}
             </span>
             <span className="rounded-full bg-gray-100 px-3 py-1.5 text-gray-600 ring-1 ring-gray-200">
-              {products.filter((product) => !product.is_published).length} {t.drafts.toLowerCase()}
+              {products.filter((product) => !product.is_published).length}{" "}
+              {t.drafts.toLowerCase()}
             </span>
           </div>
         </div>
@@ -358,9 +369,7 @@ export function ProductAdmin({
         {products.length === 0 ? (
           <p className="p-4 text-sm text-gray-500">{t.noProducts}</p>
         ) : visibleProducts.length === 0 ? (
-          <p className="p-4 text-sm text-gray-500">
-            {t.noSearchResults}
-          </p>
+          <p className="p-4 text-sm text-gray-500">{t.noSearchResults}</p>
         ) : (
           <div className="divide-y divide-gray-100">
             {visibleProducts.map((product) => {
@@ -403,9 +412,18 @@ export function ProductAdmin({
                       </div>
 
                       <div className="mt-3 grid gap-2 text-sm text-gray-600 sm:grid-cols-2">
-                        <ProductDetail label={t.nameEn} value={product.name_en || "-"} />
-                        <ProductDetail label={t.code} value={product.code || "-"} />
-                        <ProductDetail label={t.category} value={categoryName || "-"} />
+                        <ProductDetail
+                          label={t.nameEn}
+                          value={product.name_en || "-"}
+                        />
+                        <ProductDetail
+                          label={t.code}
+                          value={product.code || "-"}
+                        />
+                        <ProductDetail
+                          label={t.category}
+                          value={categoryName || "-"}
+                        />
                         <p>
                           <span className="font-medium text-gray-500">
                             {t.dimensions}:
@@ -437,7 +455,10 @@ export function ProductAdmin({
                           <ResourceChip icon={Box} label={t.model3d} />
                         ) : null}
                         {product.technical_file_url ? (
-                          <ResourceChip icon={FileBox} label={t.technicalFile} />
+                          <ResourceChip
+                            icon={FileBox}
+                            label={t.technicalFile}
+                          />
                         ) : null}
                       </div>
                     </div>
@@ -445,6 +466,7 @@ export function ProductAdmin({
                     <div className="flex shrink-0 flex-wrap gap-2">
                       <button
                         type="button"
+                        disabled={isSaving || uploadingField !== null}
                         onClick={() => togglePublished(product)}
                         className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition hover:border-gray-300 hover:bg-gray-50"
                       >
@@ -457,6 +479,7 @@ export function ProductAdmin({
                       </button>
                       <button
                         type="button"
+                        disabled={isSaving || uploadingField !== null}
                         onClick={() => startEdit(product)}
                         className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition hover:border-gray-300 hover:bg-gray-50"
                       >
@@ -465,6 +488,7 @@ export function ProductAdmin({
                       </button>
                       <button
                         type="button"
+                        disabled={isSaving || uploadingField !== null}
                         onClick={() => deleteProduct(product)}
                         className="inline-flex h-9 items-center gap-2 rounded-lg border border-red-200 px-3 text-sm font-medium text-red-700 transition hover:border-red-300 hover:bg-red-50"
                       >
@@ -484,18 +508,18 @@ export function ProductAdmin({
         onSubmit={handleSubmit}
         className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto"
       >
-        <div className="-mx-4 -mt-4 mb-4 flex items-start justify-between gap-3 rounded-t-2xl border-b border-gray-200 bg-gray-50 px-4 py-4">
-          <div>
-            <h2 className="text-lg font-semibold">
-              {editingProduct ? t.editProduct : t.newProduct}
-            </h2>
-            {editingProduct ? (
-              <p className="mt-1 text-sm text-gray-500">
-                {editingProduct.name_it}
-              </p>
-            ) : null}
-          </div>
-          {editingProduct ? (
+        <fieldset disabled={isSaving || uploadingField !== null}>
+          <div className="-mx-4 -mt-4 mb-4 flex items-start justify-between gap-3 rounded-t-2xl border-b border-gray-200 bg-gray-50 px-4 py-4">
+            <div>
+              <h2 className="text-lg font-semibold">
+                {editingProduct ? t.editProduct : t.newProduct}
+              </h2>
+              {editingProduct ? (
+                <p className="mt-1 text-sm text-gray-500">
+                  {editingProduct.name_it}
+                </p>
+              ) : null}
+            </div>
             <button
               type="button"
               onClick={resetForm}
@@ -504,236 +528,180 @@ export function ProductAdmin({
               <X className="h-4 w-4" aria-hidden="true" />
               {t.cancel}
             </button>
+          </div>
+
+          {errorMessage ? (
+            <p
+              role="alert"
+              className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+            >
+              {errorMessage}
+            </p>
           ) : null}
-        </div>
 
-        {errorMessage ? (
-          <p className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {errorMessage}
-          </p>
-        ) : null}
+          <div className="space-y-4">
+            <label className="block text-sm font-medium text-gray-700">
+              {t.category}
+              <div className="relative mt-1">
+                <select
+                  value={form.category_id}
+                  onChange={(event) =>
+                    updateForm("category_id", event.target.value)
+                  }
+                  className="h-10 w-full appearance-none rounded-lg border border-gray-300 bg-white pl-3 pr-12 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-100"
+                >
+                  <option value="">{t.noCategory}</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500"
+                  aria-hidden="true"
+                />
+              </div>
+            </label>
 
-        <div className="space-y-4">
-          <label className="block text-sm font-medium text-gray-700">
-            {t.category}
-            <div className="relative mt-1">
-              <select
-                value={form.category_id}
-                onChange={(event) =>
-                  updateForm("category_id", event.target.value)
-                }
-                className="h-10 w-full appearance-none rounded-lg border border-gray-300 bg-white pl-3 pr-12 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-100"
-              >
-                <option value="">{t.noCategory}</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500"
-                aria-hidden="true"
+            <div className="grid gap-3 sm:grid-cols-2">
+              <TextField
+                label={t.nameIt}
+                value={form.name_it}
+                onChange={(value) => updateForm("name_it", value)}
+                required
+              />
+              <TextField
+                label={t.nameEn}
+                value={form.name_en}
+                onChange={(value) => updateForm("name_en", value)}
               />
             </div>
-          </label>
 
-          <div className="grid gap-3 sm:grid-cols-2">
             <TextField
-              label={t.nameIt}
-              value={form.name_it}
-              onChange={(value) => updateForm("name_it", value)}
-              required
+              label={t.code}
+              value={form.code}
+              onChange={(value) => updateForm("code", value)}
             />
-            <TextField
-              label={t.nameEn}
-              value={form.name_en}
-              onChange={(value) => updateForm("name_en", value)}
-            />
-          </div>
 
-          <TextField
-            label={t.code}
-            value={form.code}
-            onChange={(value) => updateForm("code", value)}
-          />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <NumberField
+                label={`${t.width} mm`}
+                value={form.width_mm}
+                onChange={(value) => updateForm("width_mm", value)}
+                required
+              />
+              <NumberField
+                label={`${t.height} mm`}
+                value={form.height_mm}
+                onChange={(value) => updateForm("height_mm", value)}
+                required
+              />
+              <NumberField
+                label={`${t.depth} mm`}
+                value={form.depth_mm}
+                onChange={(value) => updateForm("depth_mm", value)}
+                required
+              />
+              <NumberField
+                label={`${t.thickness} mm`}
+                value={form.thickness_mm}
+                onChange={(value) => updateForm("thickness_mm", value)}
+              />
+            </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
             <NumberField
-              label={`${t.width} mm`}
-              value={form.width_mm}
-              onChange={(value) => updateForm("width_mm", value)}
-              required
+              label={t.optionalPrice}
+              value={form.price}
+              onChange={(value) => updateForm("price", value)}
+              step="0.01"
             />
-            <NumberField
-              label={`${t.height} mm`}
-              value={form.height_mm}
-              onChange={(value) => updateForm("height_mm", value)}
-              required
-            />
-            <NumberField
-              label={`${t.depth} mm`}
-              value={form.depth_mm}
-              onChange={(value) => updateForm("depth_mm", value)}
-              required
-            />
-            <NumberField
-              label={`${t.thickness} mm`}
-              value={form.thickness_mm}
-              onChange={(value) => updateForm("thickness_mm", value)}
-            />
-          </div>
 
-          <NumberField
-            label={t.optionalPrice}
-            value={form.price}
-            onChange={(value) => updateForm("price", value)}
-            step="0.01"
-          />
-
-          <AssetUrlField
-            field="preview_image_url"
-            helperText={t.previewHint}
-            isUploading={uploadingField === "preview_image_url"}
-            label={t.previewUrl}
-            uploadLabel={t.uploadPreview}
-            value={form.preview_image_url}
-            onChange={(value) => updateForm("preview_image_url", value)}
-            onUpload={handleAssetUpload}
-          />
-          <AssetUrlField
-            field="model_url"
-            helperText={t.modelHint}
-            isUploading={uploadingField === "model_url"}
-            label={t.modelUrl}
-            uploadLabel={t.uploadGlb}
-            value={form.model_url}
-            onChange={(value) => updateForm("model_url", value)}
-            onUpload={handleAssetUpload}
-          />
-          <AssetUrlField
-            field="technical_file_url"
-            helperText={t.technicalHint}
-            isUploading={uploadingField === "technical_file_url"}
-            label={t.technicalUrl}
-            uploadLabel={t.uploadRfa}
-            value={form.technical_file_url}
-            onChange={(value) => updateForm("technical_file_url", value)}
-            onUpload={handleAssetUpload}
-          />
-
-          <label className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm font-medium text-gray-700">
-            <input
-              type="checkbox"
-              checked={form.is_published}
-              onChange={(event) =>
-                updateForm("is_published", event.target.checked)
+            <ProductAssetFieldInput
+              field="preview_image_url"
+              pendingFile={pendingFiles.preview_image_url}
+              onRemoveFile={() =>
+                setPendingFiles((current) => {
+                  const next = { ...current };
+                  delete next.preview_image_url;
+                  return next;
+                })
               }
-              className="h-4 w-4 rounded border-gray-300"
+              helperText={t.previewHint}
+              isUploading={uploadingField === "preview_image_url"}
+              label={t.previewUrl}
+              uploadLabel={t.uploadPreview}
+              value={form.preview_image_url}
+              onChange={(value) => updateForm("preview_image_url", value)}
+              onUpload={handleAssetUpload}
             />
-            {t.publishedInConfigurator}
-          </label>
+            <ProductAssetFieldInput
+              field="model_url"
+              pendingFile={pendingFiles.model_url}
+              onRemoveFile={() =>
+                setPendingFiles((current) => {
+                  const next = { ...current };
+                  delete next.model_url;
+                  return next;
+                })
+              }
+              helperText={t.modelHint}
+              isUploading={uploadingField === "model_url"}
+              label={t.modelUrl}
+              uploadLabel={t.uploadGlb}
+              value={form.model_url}
+              onChange={(value) => updateForm("model_url", value)}
+              onUpload={handleAssetUpload}
+            />
+            <ProductAssetFieldInput
+              field="technical_file_url"
+              pendingFile={pendingFiles.technical_file_url}
+              onRemoveFile={() =>
+                setPendingFiles((current) => {
+                  const next = { ...current };
+                  delete next.technical_file_url;
+                  return next;
+                })
+              }
+              helperText={t.technicalHint}
+              isUploading={uploadingField === "technical_file_url"}
+              label={t.technicalUrl}
+              uploadLabel={t.uploadRfa}
+              value={form.technical_file_url}
+              onChange={(value) => updateForm("technical_file_url", value)}
+              onUpload={handleAssetUpload}
+            />
 
-          <button
-            type="submit"
-            disabled={isSaving || uploadingField !== null}
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gray-700 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-400"
-          >
-            {isSaving ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            ) : editingProduct ? (
-              <Save className="h-4 w-4" aria-hidden="true" />
-            ) : (
-              <Plus className="h-4 w-4" aria-hidden="true" />
-            )}
-            {editingProduct ? t.saveChanges : t.createProduct}
-          </button>
-        </div>
+            <label className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm font-medium text-gray-700">
+              <input
+                type="checkbox"
+                checked={form.is_published}
+                onChange={(event) =>
+                  updateForm("is_published", event.target.checked)
+                }
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              {t.publishedInConfigurator}
+            </label>
+
+            <button
+              type="submit"
+              disabled={isSaving || uploadingField !== null}
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gray-700 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-400"
+            >
+              {isSaving ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : editingProduct ? (
+                <Save className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <Plus className="h-4 w-4" aria-hidden="true" />
+              )}
+              {editingProduct ? t.saveChanges : t.createProduct}
+            </button>
+          </div>
+        </fieldset>
       </form>
     </section>
-  );
-}
-
-type AssetUrlFieldProps = {
-  field: ProductAssetField;
-  helperText: string;
-  isUploading: boolean;
-  label: string;
-  uploadLabel: string;
-  value: string;
-  onChange: (value: string) => void;
-  onUpload: (
-    field: ProductAssetField,
-    event: ChangeEvent<HTMLInputElement>
-  ) => void;
-};
-
-// Unisce URL manuale e upload diretto per gli asset collegati al prodotto.
-function AssetUrlField({
-  field,
-  helperText,
-  isUploading,
-  label,
-  uploadLabel,
-  value,
-  onChange,
-  onUpload,
-}: AssetUrlFieldProps) {
-  const locale = useConfiguratorStore((state) => state.locale);
-  const t = adminDictionary[locale];
-  const inputId = `asset-upload-${field}`;
-
-  return (
-    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
-      <div className="flex items-start justify-between gap-3">
-        <label
-          htmlFor={`${field}-url`}
-          className="text-sm font-medium text-gray-700"
-        >
-          {label}
-        </label>
-        {value ? (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-100">
-            <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-            {t.connected}
-          </span>
-        ) : null}
-      </div>
-
-      <input
-        id={`${field}-url`}
-        type="url"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="mt-2 h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-100"
-      />
-
-      <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-xs leading-5 text-gray-500">{helperText}</p>
-        <label
-          htmlFor={inputId}
-          className={`inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition hover:border-gray-300 hover:bg-gray-50 ${
-            isUploading ? "pointer-events-none opacity-70" : ""
-          }`}
-        >
-          {isUploading ? (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          ) : (
-            <Upload className="h-4 w-4" aria-hidden="true" />
-          )}
-          {isUploading ? t.loading : uploadLabel}
-        </label>
-      </div>
-
-      <input
-        id={inputId}
-        type="file"
-        accept={getProductAssetAccept(field)}
-        disabled={isUploading}
-        onChange={(event) => onUpload(field, event)}
-        className="sr-only"
-      />
-    </div>
   );
 }
 
@@ -817,6 +785,7 @@ function NumberField({
         onChange={(event) => onChange(event.target.value)}
         required={required}
         pattern="[0-9]+([,.][0-9]+)?"
+        aria-label={label}
         aria-describedby={hintId}
         className="mt-1 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-100"
       />

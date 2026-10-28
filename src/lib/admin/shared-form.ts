@@ -9,7 +9,10 @@ export function requiredNumber(value: string, label: string) {
   const normalizedValue = value.trim().replace(",", ".");
   const numberValue = Number(normalizedValue);
 
-  if (!Number.isFinite(numberValue)) {
+  if (
+    !/^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/.test(normalizedValue) ||
+    !Number.isFinite(numberValue)
+  ) {
     throw new Error(`${label} deve essere un numero valido.`);
   }
 

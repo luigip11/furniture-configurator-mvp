@@ -1,6 +1,7 @@
 import type { Category } from "@/types/configurator";
 
-import { optionalText } from "./shared-form.ts";
+import { optionalText, requiredNumber } from "./shared-form.ts";
+import { validateCategoryPayload } from "./category-validation.ts";
 
 export type CategoryFormValues = {
   name: string;
@@ -44,7 +45,7 @@ export function categoryToForm(category: Category): CategoryFormValues {
 
 // Costruisce il payload Supabase validando i campi obbligatori e gli edge case.
 export function buildCategoryPayload(
-  form: CategoryFormValues
+  form: CategoryFormValues,
 ): CategoryPayload {
   const name = form.name.trim();
   const slug = form.slug.trim() || slugify(name);
@@ -62,10 +63,11 @@ export function buildCategoryPayload(
     throw new Error("Ordine deve essere un numero valido.");
   }
 
-  return {
+  return validateCategoryPayload({
     name,
     slug,
     description: optionalText(form.description),
-    sort_order: sortOrder.length > 0 ? Number(sortOrder) : null,
-  };
+    sort_order:
+      sortOrder.length > 0 ? requiredNumber(sortOrder, "Ordine") : null,
+  });
 }

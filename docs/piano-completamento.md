@@ -29,11 +29,53 @@ Per attivare l'invio reale serviranno destinatario, provider e credenziali serve
 
 Test automatici: `npm test`, `npm run test:python`, `npm run typecheck`, `npm run lint`, `npm run build`. Le prove browser di errore, catalogo vuoto e prezzo zero usano un catalogo sintetico isolato, senza alterare Supabase.
 
-## Fase 4 — Interfaccia e admin (da affrontare separatamente)
+## Fase 4 — Interfaccia e admin
 
-- Verificare ed eliminare sovrapposizioni fra Vista cliente e selettore lingua su mobile.
-- Gestire focus, navigazione da tastiera ed Escape nel wizard ante esistente.
-- Chiarire che le impostazioni della scena valgono per il browser corrente.
-- Rafforzare la validazione dei campi admin anche nelle API.
-- Verificare limiti e gestione degli upload, inclusi asset caricati ma non associati a prodotti.
-- Aggiungere regressioni per i difetti trovati e collaudare desktop e mobile.
+- Header senza sovrapposizioni a 320, 360, 390, 768 e 1440 px, in IT/EN/FR e nelle due viste.
+- Wizard ante in un dialog nativo: sfondo non interattivo, focus confinato, ritorno al pulsante di apertura, Escape e chiusura sullo sfondo. Ogni passaggio porta il focus al proprio titolo. La bozza si applica solo alla conferma.
+- Impostazioni della scena dichiarate come preferenze del browser corrente; focus visibile sui toggle da tastiera. Il campo email futuro della fase 3 rimane disabilitato.
+- Validazione condivisa fra form e API per prodotti e categorie: quote entro i limiti geometrici, spessore positivo compatibile, prezzo nullo o non negativo (zero valido), URL HTTP(S) senza credenziali, UUID, testo limitato, slug e ordine intero. I campi extra e i JSON eccessivi o malformati sono rifiutati.
+- File selezionati conservati solo in memoria fino al salvataggio. Annullamento, sostituzione della selezione e cambio prodotto non avviano upload. Il form rimane bloccato durante il salvataggio.
+- Upload diretto a Supabase con URL firmato e percorso univoco, senza far transitare i byte del file dalle funzioni Vercel. Restano i limiti applicativi di 8 MB per immagini, 80 MB per modelli e 180 MB per tecnici, subordinati ai limiti effettivi del servizio Storage. Gli errori di quota o rete non vengono trattati come successi.
+- Controlli di estensione, dimensione e firma iniziale del contenuto; GLB v2 con lunghezza coerente e GLTF locale autosufficiente. I controlli non certificano validità CAD, integrità completa del documento o assenza di malware.
+- Ricevute firmate e verifica lato server di percorso, campo, dimensione effettiva e intestazione del file prima dell'associazione al prodotto.
+- Un fallimento noto del salvataggio compensa i nuovi upload. La pulizia controlla tutti i prodotti con paginazione e tutti i campi asset, includendo URL firmati o con query, e non cancella quelli già associati. Non rimuove i vecchi file sostituiti o condivisi.
+- Un esito di salvataggio incerto conserva i file e chiede di verificare l'elenco prodotti prima di riprovare. Chiusura del browser, interruzioni di rete o pulizia fallita possono lasciare oggetti da revisionare: non viene promessa una transazione atomica tra database e storage.
+
+### Test di regressione ripetibili
+
+```bash
+npm ci
+npx playwright install chromium
+npm test
+npm run test:python
+npm run typecheck
+npm run lint
+npm run build
+npm run test:browser
+```
+
+La suite browser avvia una copia temporanea dell'app e un backend Supabase simulato in memoria con credenziali fittizie. Blocca richieste verso host esterni e non usa il database reale. Comprende header responsive, tastiera e bozza del wizard, preferenze indipendenti, selezione/annullamento file, upload diretto di 6 MB, errore di upload, errore di salvataggio con pulizia, risposta persa senza perdita dell'asset associato e validazione delle API.
+
+Per usare Chromium già presente nell'ambiente cloud:
+
+```bash
+PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:browser
+```
+
+Il collaudo mobile è su viewport Chromium; non sostituisce una prova su dispositivi fisici Safari/iOS o Android.
+
+### Inventario degli asset storici
+
+`npm run audit:assets` legge `.env.local`/`.env` se presenti e produce un report JSON di sola lettura, senza opzioni di cancellazione. Servono le stesse variabili Supabase server dell'app. Nell'ambiente cloud con proxy: `NODE_USE_ENV_PROXY=1 npm run audit:assets`.
+
+Verifica del 27 ottobre 2026: bucket `product-assets` pubblico, senza limiti specifici di dimensione o MIME impostati a livello bucket; il limite globale del piano non è stato modificato né dedotto dal valore nullo. Inventariati 43 oggetti: 3 non risultano referenziati dai campi asset dei prodotti, tutti più vecchi di 24 ore. Nessun oggetto è stato cancellato. Il report non conosce riferimenti esterni al catalogo: i candidati richiedono revisione prima di una pulizia manuale.
+
+### Collaudo manuale della fase 4
+
+1. Verificare header e cambio vista su schermo piccolo nelle tre lingue.
+2. Aprire Configura anta: navigare con Tab/Shift+Tab, selezionare opzioni e cambiare passaggio. Escape o chiusura devono annullare la bozza e restituire il focus al pulsante di apertura.
+3. Confermare l'anta e riaprire: le scelte confermate devono restare applicate.
+4. In Admin → Configuratore leggere l'ambito locale delle preferenze; un altro browser deve mantenere i propri valori.
+5. Selezionare un file valido nel form prodotti e annullare: nessun caricamento deve partire. Un file incompatibile deve mostrare un errore.
+6. Provare scritture, upload e fallimenti esclusivamente nel backend isolato della suite o in uno staging dedicato. Non usare prodotti reali per forzare errori e verificare cancellazioni.

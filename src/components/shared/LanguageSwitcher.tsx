@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { FlagFr, FlagGb, FlagIt } from "@sankyu/react-circle-flags";
 
+import { useDocumentLanguage } from "@/components/shared/useDocumentLanguage";
 import { useConfiguratorStore } from "@/store/configurator-store";
 
 // Mostra il selettore lingua condiviso tra configuratore e area amministrativa.
@@ -10,6 +11,8 @@ export function LanguageSwitcher() {
   const locale = useConfiguratorStore((state) => state.locale);
   const hydrateLocale = useConfiguratorStore((state) => state.hydrateLocale);
   const setLocale = useConfiguratorStore((state) => state.setLocale);
+
+  useDocumentLanguage(locale);
 
   useEffect(() => {
     hydrateLocale();

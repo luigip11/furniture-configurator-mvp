@@ -8,6 +8,7 @@ import {
   PackageCheck,
 } from "lucide-react";
 
+import { AdminDataError } from "@/components/admin/AdminDataError";
 import { AdminHeader } from "@/components/admin/AdminHeader";
 import { AdminText } from "@/components/admin/AdminText";
 import { getAdminCategories, getAdminProducts } from "@/lib/admin/data";
@@ -20,30 +21,40 @@ export default async function AdminPage() {
     getAdminCategories(),
   ]);
 
-  const publishedProducts = products.filter((product) => product.is_published);
-  const draftProducts = products.length - publishedProducts.length;
+  // Con dati non disponibili i contatori mostrano un trattino, non uno zero che sembrerebbe un catalogo vuoto.
+  const publishedProducts = products.rows.filter(
+    (product) => product.is_published,
+  );
+  const totalCount = products.failed ? null : products.rows.length;
+  const publishedCount = products.failed ? null : publishedProducts.length;
+  const draftCount = products.failed
+    ? null
+    : products.rows.length - publishedProducts.length;
+  const categoryCount = categories.failed ? null : categories.rows.length;
 
   return (
     <main className="min-h-screen bg-gray-100 text-gray-950">
       <AdminHeader page="overview" />
 
       <section className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6 lg:px-8">
+        {products.failed || categories.failed ? <AdminDataError /> : null}
+
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <AdminMetric
             icon={Boxes}
             label={<AdminText textKey="totalProducts" />}
-            value={products.length}
+            value={totalCount}
           />
           <AdminMetric
             icon={PackageCheck}
             label={<AdminText textKey="published" />}
-            value={publishedProducts.length}
+            value={publishedCount}
           />
-          <AdminMetric icon={FilePenLine} label={<AdminText textKey="drafts" />} value={draftProducts} />
+          <AdminMetric icon={FilePenLine} label={<AdminText textKey="drafts" />} value={draftCount} />
           <AdminMetric
             icon={FolderTree}
             label={<AdminText textKey="categories" />}
-            value={categories.length}
+            value={categoryCount}
           />
         </div>
 
@@ -67,9 +78,9 @@ export default async function AdminPage() {
                 Gestisci moduli, misure, prezzi e visibilità nel configuratore.
               </p>
               <dl className="mt-5 grid grid-cols-3 gap-3 text-sm">
-                <AdminMiniStat label={<AdminText textKey="total" />} value={products.length} />
-                <AdminMiniStat label={<AdminText textKey="online" />} value={publishedProducts.length} />
-                <AdminMiniStat label={<AdminText textKey="drafts" />} value={draftProducts} />
+                <AdminMiniStat label={<AdminText textKey="total" />} value={totalCount} />
+                <AdminMiniStat label={<AdminText textKey="online" />} value={publishedCount} />
+                <AdminMiniStat label={<AdminText textKey="drafts" />} value={draftCount} />
               </dl>
             </div>
           </Link>
@@ -95,7 +106,7 @@ export default async function AdminPage() {
               <div className="mt-5">
                 <AdminMiniStat
                   label={<AdminText textKey="availableCategories" />}
-                  value={categories.length}
+                  value={categoryCount}
                 />
               </div>
             </div>
@@ -127,21 +138,23 @@ export default async function AdminPage() {
           </Link>
         </div>
 
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-              <Eye className="h-5 w-5" aria-hidden="true" />
-            </span>
-            <div>
-              <h2 className="font-semibold"><AdminText textKey="catalogStatus" /></h2>
-              <p className="text-sm text-gray-600">
-                {publishedProducts.length > 0
-                  ? <AdminText textKey="modulesVisible" value={publishedProducts.length} />
-                  : <AdminText textKey="noPublishedModules" />}
-              </p>
+        {!products.failed ? (
+          <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                <Eye className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div>
+                <h2 className="font-semibold"><AdminText textKey="catalogStatus" /></h2>
+                <p className="text-sm text-gray-600">
+                  {publishedProducts.length > 0
+                    ? <AdminText textKey="modulesVisible" value={publishedProducts.length} />
+                    : <AdminText textKey="noPublishedModules" />}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        ) : null}
       </section>
     </main>
   );
@@ -150,7 +163,7 @@ export default async function AdminPage() {
 type AdminMetricProps = {
   icon: typeof Boxes;
   label: React.ReactNode;
-  value: number;
+  value: number | null;
 };
 
 function AdminMetric({ icon: Icon, label, value }: AdminMetricProps) {
@@ -162,18 +175,18 @@ function AdminMetric({ icon: Icon, label, value }: AdminMetricProps) {
           <Icon className="h-4 w-4" aria-hidden="true" />
         </span>
       </div>
-      <p className="mt-3 text-3xl font-semibold tracking-tight">{value}</p>
+      <p className="mt-3 text-3xl font-semibold tracking-tight">{value ?? "—"}</p>
     </div>
   );
 }
 
-function AdminMiniStat({ label, value }: { label: React.ReactNode; value: number }) {
+function AdminMiniStat({ label, value }: { label: React.ReactNode; value: number | null }) {
   return (
     <div className="border-l-2 border-gray-300 pl-3">
       <dt className="text-xs font-medium uppercase tracking-[0.08em] text-gray-500">
         {label}
       </dt>
-      <dd className="mt-1 text-2xl font-semibold">{value}</dd>
+      <dd className="mt-1 text-2xl font-semibold">{value ?? "—"}</dd>
     </div>
   );
 }

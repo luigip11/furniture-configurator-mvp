@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createConfiguratorStore } from "../src/store/configurator-store.ts";
+import {
+  CONFIGURATOR_HISTORY_LIMIT,
+  createConfiguratorStore,
+} from "../src/store/configurator-store.ts";
 import {
   getProductVariantKeys,
   searchCatalogFamilies,
@@ -290,4 +293,29 @@ test("una variante non disponibile viene rifiutata senza sostituire silenziosame
   store.getState().updateVariant(before.selectedItemId!, "visible_left");
   assert.equal(store.getState().configurationError, "variantUnavailable");
   assert.equal(store.getState().items, before.items);
+});
+
+// Nelle sessioni lunghe la cronologia resta limitata: si perdono solo i passi più vecchi.
+test("annulla/ripeti conserva al massimo gli ultimi passi previsti dal limite", () => {
+  const store = createConfiguratorStore();
+  const extraSteps = 5;
+  for (let step = 0; step < CONFIGURATOR_HISTORY_LIMIT + extraSteps; step++)
+    store.getState().updateSettings({
+      allowFreeMovementInOpenScene: step % 2 === 0,
+    });
+  assert.equal(store.getState().past.length, CONFIGURATOR_HISTORY_LIMIT);
+
+  for (let step = 0; step < CONFIGURATOR_HISTORY_LIMIT; step++)
+    store.getState().undo();
+  assert.equal(store.getState().canUndo, false);
+  assert.equal(store.getState().future.length, CONFIGURATOR_HISTORY_LIMIT);
+  // Il passo più vecchio rimasto corrisponde allo stato dopo i primi cinque cambi scartati.
+  assert.equal(
+    store.getState().settings.allowFreeMovementInOpenScene,
+    (extraSteps - 1) % 2 === 0,
+  );
+
+  store.getState().redo();
+  assert.equal(store.getState().canUndo, true);
+  assert.equal(store.getState().future.length, CONFIGURATOR_HISTORY_LIMIT - 1);
 });

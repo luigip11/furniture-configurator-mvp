@@ -47,6 +47,8 @@ export {
 
 const CONFIGURATOR_SETTINGS_STORAGE_KEY = "furniture-configurator-settings";
 const CONFIGURATOR_LOCALE_STORAGE_KEY = "furniture-configurator-locale";
+// Limita la memoria usata da annulla/ripeti nelle sessioni lunghe; i passi più vecchi vengono scartati.
+export const CONFIGURATOR_HISTORY_LIMIT = 100;
 
 type ConfiguratorHistorySnapshot = {
   items: ConfiguratorItem[];
@@ -163,7 +165,7 @@ export function createConfiguratorStore() {
         canRedo: false,
         ...(snapshot
           ? {
-              past: [...state.past, snapshot],
+              past: limitHistory([...state.past, snapshot]),
               canUndo: true,
             }
           : {}),
@@ -241,11 +243,11 @@ export function createConfiguratorStore() {
       const past =
         direction === "undo"
           ? state.past.slice(0, -1)
-          : [...state.past, cloneSnapshot(state)];
+          : limitHistory([...state.past, cloneSnapshot(state)]);
       const future =
         direction === "redo"
           ? state.future.slice(0, -1)
-          : [...state.future, cloneSnapshot(state)];
+          : limitHistory([...state.future, cloneSnapshot(state)]);
       gestureSnapshot = null;
       writeStoredSettings(snapshot.settings);
       set({
@@ -473,6 +475,13 @@ export function createConfiguratorStore() {
 }
 
 export const useConfiguratorStore = createConfiguratorStore();
+
+// Conserva solo gli snapshot più recenti entro il limite della cronologia.
+function limitHistory(history: ConfiguratorHistorySnapshot[]) {
+  return history.length > CONFIGURATOR_HISTORY_LIMIT
+    ? history.slice(-CONFIGURATOR_HISTORY_LIMIT)
+    : history;
+}
 
 // Clona gli snapshot per evitare che undo/redo condividano riferimenti mutabili.
 function cloneSnapshot(

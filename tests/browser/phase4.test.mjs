@@ -687,3 +687,113 @@ test("eliminazione di prodotti e categorie tramite API admin", async (t) => {
   await category.waitFor({ state: "detached" });
   assert.equal(environment.fixture.state.categories.length, 0);
 });
+
+// Un database irraggiungibile non deve sembrare un catalogo vuoto né lasciare un form che salva dati incompleti.
+test("errore di lettura in admin mostra avviso e Riprova invece di elenchi vuoti", async (t) => {
+  const { page } = await testPage(environment, t);
+  environment.fixture.state.failRead = true;
+  await page.goto(environment.origin + "/admin/prodotti", {
+    waitUntil: "networkidle",
+  });
+  // Next aggiunge un proprio annunciatore con role="alert": si cerca il messaggio, non il ruolo.
+  const message = page.getByText("Impossibile caricare i dati dal database.", {
+    exact: false,
+  });
+  await message.waitFor();
+  assert.equal(
+    await page.getByRole("button", { name: "Crea prodotto" }).count(),
+    0,
+  );
+
+  environment.fixture.state.failRead = false;
+  await page.getByRole("button", { name: "Riprova", exact: true }).click();
+  await page
+    .getByRole("heading", { name: "Pensile prova", exact: true })
+    .waitFor();
+  assert.equal(await message.count(), 0);
+
+  environment.fixture.state.failRead = true;
+  await page.goto(environment.origin + "/admin", { waitUntil: "networkidle" });
+  await message.waitFor();
+  assert.ok((await page.getByText("—", { exact: true }).count()) >= 4);
+  assert.equal(
+    await page.getByText("Nessun modulo pubblicato", { exact: false }).count(),
+    0,
+  );
+});
+
+// Il codice resta libero, ma un valore senza distinta tecnica viene segnalato prima del salvataggio.
+test("codice prodotto non riconosciuto mostra un avviso non bloccante", async (t) => {
+  const { page } = await testPage(environment, t);
+  await page.goto(environment.origin + "/admin/prodotti", {
+    waitUntil: "networkidle",
+  });
+  const code = page.getByLabel("Codice", { exact: true });
+  await page
+    .getByText("Senza codice il modulo non avrà distinta tecnica", {
+      exact: false,
+    })
+    .waitFor();
+  await code.fill("PENSILE_ORIZZONTALE_A_VISTA_ZZ");
+  const warning = page.getByText("Codice non presente nel catalogo tecnico", {
+    exact: false,
+  });
+  await warning.waitFor();
+  assert.match(
+    (await code.getAttribute("aria-describedby")) || "",
+    /.+/,
+  );
+  await code.fill("pensile_orizzontale_a_vista_sx");
+  await warning.waitFor({ state: "detached" });
+});
+
+// Un errore di rete sulla pubblicazione viene mostrato e il pulsante torna utilizzabile.
+test("pubblicazione con rete assente mostra l'errore senza bloccare la lista", async (t) => {
+  const { page, context } = await testPage(environment, t);
+  await page.goto(environment.origin + "/admin/prodotti", {
+    waitUntil: "networkidle",
+  });
+  await context.route("**/api/admin/products/*/publish", (route) =>
+    route.abort("internetdisconnected"),
+  );
+  const button = page
+    .locator("article")
+    .first()
+    .getByRole("button", { name: "Nascondi", exact: true });
+  await button.click();
+  await page
+    .getByRole("alert")
+    .getByText("Impossibile aggiornare la pubblicazione.", { exact: true })
+    .waitFor();
+  assert.equal(await button.isEnabled(), true);
+  assert.equal(environment.fixture.state.products[0].is_published, true);
+});
+
+// La 404 segue la lingua salvata e aggiorna anche l'attributo lang del documento.
+test("pagina inesistente e lingua del documento seguono la preferenza salvata", async (t) => {
+  const { page, context } = await testPage(environment, t);
+  const missing = await page.goto(environment.origin + "/pagina-inesistente");
+  assert.equal(missing.status(), 404);
+  await page
+    .getByRole("heading", { name: "Pagina non trovata", exact: true })
+    .waitFor();
+
+  await context.addInitScript(() =>
+    window.localStorage.setItem("furniture-configurator-locale", "en"),
+  );
+  await page.goto(environment.origin + "/pagina-inesistente");
+  await page
+    .getByRole("heading", { name: "Page not found", exact: true })
+    .waitFor();
+  assert.equal(
+    await page.evaluate(() => document.documentElement.lang),
+    "en",
+  );
+
+  await page.goto(environment.origin + "/configuratore", {
+    waitUntil: "networkidle",
+  });
+  await page.waitForFunction(() => document.documentElement.lang === "en");
+  await page.getByRole("button", { name: "Italiano" }).click();
+  await page.waitForFunction(() => document.documentElement.lang === "it");
+});

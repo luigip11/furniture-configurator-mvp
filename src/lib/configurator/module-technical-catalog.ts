@@ -4,7 +4,10 @@ import {
 } from "../../types/configurator.ts";
 import type { ModuleVariantKey } from "../../types/configurator.ts";
 import { GENERATED_TECHNICAL_CATALOG } from "./generated-technical-catalog.ts";
-import { getParametricBillOfMaterials } from "./parametric-bom.ts";
+import {
+  getParametricBillOfMaterials,
+  hasParametricBillOfMaterials,
+} from "./parametric-bom.ts";
 import { hasSupportedDimensions } from "./module-capabilities.ts";
 import type { ConfiguratorItem } from "../../types/configurator.ts";
 
@@ -438,6 +441,13 @@ const TECHNICAL_CATALOG: Record<string, ModuleTechnicalDefinition> = {
 // Normalizza il codice prodotto per rendere robuste le ricerche nel catalogo tecnico.
 export function normalizeProductCode(code?: string | null) {
   return (code || "").trim().toUpperCase();
+}
+
+// Indica se il codice è collegato a una distinta: da catalogo Excel, storico o formule parametriche.
+export function hasTechnicalDefinition(code?: string | null) {
+  return (
+    Boolean(getTechnicalDefinition(code)) || hasParametricBillOfMaterials(code)
+  );
 }
 
 // Restituisce le varianti fianchi disponibili per un prodotto configurabile.

@@ -24,6 +24,7 @@ export async function startFixture() {
     calls: [],
     failWrite: false,
     writeErrorCode: "23514",
+    failRead: false,
     failUpload: false,
     bucketLimit: null,
   };
@@ -50,6 +51,7 @@ export async function startFixture() {
     state.calls = [];
     state.failWrite = false;
     state.writeErrorCode = "23514";
+    state.failRead = false;
     state.failUpload = false;
     state.bucketLimit = null;
   }
@@ -88,6 +90,8 @@ export async function startFixture() {
       for (const [field, value] of url.searchParams)
         if (value.startsWith("eq."))
           rows = rows.filter((row) => String(row[field]) === value.slice(3));
+      if (request.method === "GET" && state.failRead)
+        return json({ message: "Synthetic read failure" }, 503);
       if (request.method === "GET")
         return json(
           request.headers.accept?.includes("vnd.pgrst.object")

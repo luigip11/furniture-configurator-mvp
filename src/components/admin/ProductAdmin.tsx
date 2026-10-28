@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Box,
@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import { deleteAdminRecord } from "@/lib/admin/admin-delete-client";
+import { getProductCodeStatus } from "@/lib/admin/product-code-check";
 import type { Category, Product } from "@/types/configurator";
 import {
   emptyProductForm,
@@ -71,6 +72,10 @@ export function ProductAdmin({
   const [uploadingField, setUploadingField] =
     useState<ProductAssetField | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [publishingProductId, setPublishingProductId] = useState<
+    string | null
+  >(null);
+  const codeStatus = getProductCodeStatus(form.code);
 
   const categoryById = useMemo(() => {
     return new Map(categories.map((category) => [category.id, category]));
@@ -196,35 +201,46 @@ export function ProductAdmin({
     }
   }
 
+  // Una sola pubblicazione alla volta: gli errori di rete vengono mostrati invece di perdersi in console.
   async function togglePublished(product: Product) {
-    if (isSaving || uploadingField) return;
+    if (isSaving || uploadingField || publishingProductId) return;
     setErrorMessage(null);
+    setPublishingProductId(product.id);
     const nextPublishedValue = !product.is_published;
 
-    const response = await fetch(`/api/admin/products/${product.id}/publish`, {
-      body: JSON.stringify({ is_published: nextPublishedValue }),
-      headers: {
-        "Content-Type": "application/json",
-      },
-      method: "PATCH",
-    });
-    const result = (await response.json().catch(() => null)) as {
-      message?: string;
-      product?: Product;
-    } | null;
+    try {
+      const response = await fetch(
+        `/api/admin/products/${product.id}/publish`,
+        {
+          body: JSON.stringify({ is_published: nextPublishedValue }),
+          headers: {
+            "Content-Type": "application/json",
+          },
+          method: "PATCH",
+        },
+      );
+      const result = (await response.json().catch(() => null)) as {
+        message?: string;
+        product?: Product;
+      } | null;
 
-    if (!response.ok || !result?.product) {
-      setErrorMessage(result?.message || t.publishError);
-      return;
+      if (!response.ok || !result?.product) {
+        setErrorMessage(result?.message || t.publishError);
+        return;
+      }
+
+      const savedProduct = result.product;
+      setProducts((currentProducts) =>
+        currentProducts.map((currentProduct) =>
+          currentProduct.id === savedProduct.id ? savedProduct : currentProduct,
+        ),
+      );
+      router.refresh();
+    } catch {
+      setErrorMessage(t.publishError);
+    } finally {
+      setPublishingProductId(null);
     }
-
-    const savedProduct = result.product;
-    setProducts((currentProducts) =>
-      currentProducts.map((currentProduct) =>
-        currentProduct.id === savedProduct.id ? savedProduct : currentProduct,
-      ),
-    );
-    router.refresh();
   }
 
   // Valida e trattiene il file nel browser: nessun upload prima del salvataggio del prodotto.
@@ -463,11 +479,21 @@ export function ProductAdmin({
                     <div className="flex shrink-0 flex-wrap gap-2">
                       <button
                         type="button"
-                        disabled={isSaving || uploadingField !== null}
+                        disabled={
+                          isSaving ||
+                          uploadingField !== null ||
+                          publishingProductId !== null
+                        }
+                        aria-busy={publishingProductId === product.id}
                         onClick={() => togglePublished(product)}
                         className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition hover:border-gray-300 hover:bg-gray-50"
                       >
-                        {product.is_published ? (
+                        {publishingProductId === product.id ? (
+                          <Loader2
+                            className="h-4 w-4 animate-spin"
+                            aria-hidden="true"
+                          />
+                        ) : product.is_published ? (
                           <EyeOff className="h-4 w-4" aria-hidden="true" />
                         ) : (
                           <Eye className="h-4 w-4" aria-hidden="true" />
@@ -579,6 +605,13 @@ export function ProductAdmin({
               label={t.code}
               value={form.code}
               onChange={(value) => updateForm("code", value)}
+              hint={
+                codeStatus === "unknown"
+                  ? { tone: "warning", text: t.codeUnknownWarning }
+                  : codeStatus === "missing"
+                    ? { tone: "info", text: t.codeMissingHint }
+                    : undefined
+              }
             />
 
             <div className="grid gap-3 sm:grid-cols-2">
@@ -730,15 +763,20 @@ type TextFieldProps = {
   onChange: (value: string) => void;
   required?: boolean;
   type?: "text" | "url";
+  hint?: { tone: "info" | "warning"; text: string };
 };
 
+// Campo testo con nota opzionale collegata via aria-describedby, letta anche dagli screen reader.
 function TextField({
   label,
   value,
   onChange,
   required = false,
   type = "text",
+  hint,
 }: TextFieldProps) {
+  const hintId = useId();
+
   return (
     <label className="block text-sm font-medium text-gray-700">
       {label}
@@ -747,8 +785,21 @@ function TextField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         required={required}
+        // Come in NumberField: la nota dentro la label non deve entrare nel nome del campo.
+        aria-label={label}
+        aria-describedby={hint ? hintId : undefined}
         className="mt-1 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-100"
       />
+      {hint ? (
+        <span
+          id={hintId}
+          className={`mt-1 block text-xs font-normal leading-5 ${
+            hint.tone === "warning" ? "text-amber-700" : "text-gray-500"
+          }`}
+        >
+          {hint.text}
+        </span>
+      ) : null}
     </label>
   );
 }

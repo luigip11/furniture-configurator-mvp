@@ -23,6 +23,7 @@ export async function startFixture() {
     objects: new Map(),
     calls: [],
     failWrite: false,
+    writeErrorCode: "23514",
     failUpload: false,
     bucketLimit: null,
   };
@@ -48,6 +49,7 @@ export async function startFixture() {
     state.objects.clear();
     state.calls = [];
     state.failWrite = false;
+    state.writeErrorCode = "23514";
     state.failUpload = false;
     state.bucketLimit = null;
   }
@@ -96,11 +98,15 @@ export async function startFixture() {
         return json(
           {
             message: "Synthetic write rejected",
-            code: "23514",
+            code: state.writeErrorCode,
             details: "fixture",
           },
           400,
         );
+      if (request.method === "DELETE") {
+        state[table] = state[table].filter((row) => !rows.includes(row));
+        return json(rows);
+      }
       const input = JSON.parse(body.toString() || "{}");
       if (request.method === "POST") {
         const created = {

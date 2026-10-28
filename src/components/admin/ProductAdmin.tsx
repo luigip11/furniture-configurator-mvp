@@ -18,7 +18,7 @@ import {
   X,
 } from "lucide-react";
 
-import { supabase } from "@/lib/supabase/client";
+import { deleteAdminRecord } from "@/lib/admin/admin-delete-client";
 import type { Category, Product } from "@/types/configurator";
 import {
   emptyProductForm,
@@ -261,13 +261,10 @@ export function ProductAdmin({
 
     setErrorMessage(null);
 
-    const { error } = await supabase
-      .from("products")
-      .delete()
-      .eq("id", product.id);
+    const result = await deleteAdminRecord("products", product.id);
 
-    if (error) {
-      setErrorMessage(error.message);
+    if (!result.ok) {
+      setErrorMessage(result.message || t.deleteProductError);
       return;
     }
 

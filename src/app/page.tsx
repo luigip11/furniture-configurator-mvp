@@ -24,12 +24,13 @@ export default function Home() {
           >
             Apri configuratore
           </Link>
-          <Link
+          {/* Link nativo: il prefetch di next/link chiederebbe le credenziali admin a ogni visitatore. */}
+          <a
             href="/admin"
             className="inline-flex justify-center rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-medium text-gray-800 transition hover:border-gray-400 hover:bg-gray-50"
           >
             Area admin
-          </Link>
+          </a>
         </div>
       </section>
     </main>

@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { before, after, beforeEach, test } from "node:test";
-import { startBrowserEnvironment, testPage } from "./environment.mjs";
+import {
+  ADMIN_TEST_CREDENTIALS,
+  startBrowserEnvironment,
+  testPage,
+} from "./environment.mjs";
 
 let environment;
 before(
@@ -555,4 +559,131 @@ test("modifica prodotto esistente e pubblicazione restano operative", async (t) 
   await article.getByRole("button", { name: "Nascondi", exact: true }).click();
   await article.getByText("Bozza", { exact: true }).waitFor();
   assert.equal(environment.fixture.state.products[0].is_published, false);
+});
+
+// Intestazione Basic costruita come la invierebbe il browser dopo il popup di accesso.
+function basicAuthorization(username, password) {
+  return "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
+}
+
+// Senza credenziali l'area admin è chiusa, mentre il configuratore resta pubblico.
+test("area admin e API chiuse senza credenziali valide", async (t) => {
+  const { context } = await testPage(environment, t, undefined, {
+    authenticated: false,
+  });
+  const productUrl =
+    environment.origin +
+    "/api/admin/products/11111111-1111-4111-8111-111111111111";
+  const page = await context.request.get(environment.origin + "/admin/prodotti");
+  assert.equal(page.status(), 401);
+  assert.match(page.headers()["www-authenticate"] || "", /^Basic realm=/);
+  assert.equal(
+    (
+      await context.request.get(environment.origin + "/admin", {
+        headers: {
+          Authorization: basicAuthorization(
+            ADMIN_TEST_CREDENTIALS.username,
+            "password-sbagliata",
+          ),
+        },
+      })
+    ).status(),
+    401,
+  );
+  const create = await context.request.post(
+    environment.origin + "/api/admin/products",
+    {
+      data: {
+        name_it: "Intruso",
+        width_mm: 700,
+        height_mm: 880,
+        depth_mm: 665,
+        is_published: true,
+      },
+    },
+  );
+  assert.equal(create.status(), 401);
+  assert.deepEqual(await create.json(), { message: "Accesso riservato." });
+  assert.equal((await context.request.delete(productUrl)).status(), 401);
+  // Credenziali valide non bastano a una scrittura partita da un altro sito.
+  assert.equal(
+    (
+      await context.request.delete(productUrl, {
+        headers: {
+          Authorization: basicAuthorization(
+            ADMIN_TEST_CREDENTIALS.username,
+            ADMIN_TEST_CREDENTIALS.password,
+          ),
+          "Sec-Fetch-Site": "cross-site",
+        },
+      })
+    ).status(),
+    403,
+  );
+  assert.equal(
+    (await context.request.get(environment.origin + "/configuratore")).status(),
+    200,
+  );
+  assert.equal(environment.fixture.state.products.length, 1);
+  assert.equal(
+    environment.fixture.state.calls.filter(
+      (call) => !["GET", "HEAD"].includes(call.method),
+    ).length,
+    0,
+  );
+});
+
+// La cancellazione passa dalle API protette e mostra il rifiuto senza togliere la riga dall'elenco.
+test("eliminazione di prodotti e categorie tramite API admin", async (t) => {
+  const { page } = await testPage(environment, t);
+  page.on("dialog", (dialog) => dialog.accept());
+
+  await page.goto(environment.origin + "/admin/prodotti", {
+    waitUntil: "networkidle",
+  });
+  const product = page
+    .locator("article")
+    .filter({ has: page.getByRole("heading", { name: "Pensile prova" }) });
+  environment.fixture.state.failWrite = true;
+  await product.getByRole("button", { name: "Elimina", exact: true }).click();
+  await page
+    .getByRole("alert")
+    .getByText("Impossibile eliminare il prodotto.", { exact: true })
+    .waitFor();
+  assert.equal(await product.count(), 1);
+  assert.equal(environment.fixture.state.products.length, 1);
+
+  environment.fixture.state.failWrite = false;
+  await product.getByRole("button", { name: "Elimina", exact: true }).click();
+  await product.waitFor({ state: "detached" });
+  assert.equal(environment.fixture.state.products.length, 0);
+  assert.ok(
+    environment.fixture.state.calls.some(
+      (call) =>
+        call.method === "DELETE" && call.pathname === "/rest/v1/products",
+    ),
+  );
+
+  await page.goto(environment.origin + "/admin/categorie", {
+    waitUntil: "networkidle",
+  });
+  const category = page
+    .locator("article")
+    .filter({ has: page.getByRole("heading", { name: "Pensili" }) });
+  environment.fixture.state.failWrite = true;
+  environment.fixture.state.writeErrorCode = "23503";
+  await category.getByRole("button", { name: "Elimina", exact: true }).click();
+  await page
+    .getByRole("alert")
+    .getByText(
+      "Categoria usata da uno o più prodotti: spostali prima di eliminarla.",
+      { exact: true },
+    )
+    .waitFor();
+  assert.equal(environment.fixture.state.categories.length, 1);
+
+  environment.fixture.state.failWrite = false;
+  await category.getByRole("button", { name: "Elimina", exact: true }).click();
+  await category.waitFor({ state: "detached" });
+  assert.equal(environment.fixture.state.categories.length, 0);
 });

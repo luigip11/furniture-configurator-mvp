@@ -7,6 +7,12 @@ import { spawn } from "node:child_process";
 import { chromium } from "playwright";
 import { startFixture } from "./fixture.mjs";
 
+// Credenziali fittizie dell'area admin, valide solo per la copia temporanea dell'app.
+export const ADMIN_TEST_CREDENTIALS = {
+  username: "collaudo",
+  password: "password-collaudo-lunga",
+};
+
 // Usa una copia isolata e credenziali fittizie: la suite non può scrivere su Supabase reale.
 export async function startBrowserEnvironment() {
   const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -48,6 +54,8 @@ export async function startBrowserEnvironment() {
         NEXT_PUBLIC_SUPABASE_URL: fixture.origin,
         NEXT_PUBLIC_SUPABASE_ANON_KEY: "fixture-anon-key",
         SUPABASE_SERVICE_ROLE_KEY: "fixture-service-key",
+        ADMIN_USERNAME: ADMIN_TEST_CREDENTIALS.username,
+        ADMIN_PASSWORD: ADMIN_TEST_CREDENTIALS.password,
         NODE_USE_ENV_PROXY: "0",
         NEXT_TELEMETRY_DISABLED: "1",
       },
@@ -113,12 +121,17 @@ export async function startBrowserEnvironment() {
 }
 
 // Blocca richieste esterne al collaudo; ogni pagina usa un profilo nuovo e indipendente.
+// Di default il profilo risponde al popup admin con le credenziali di prova; authenticated: false lo simula anonimo.
 export async function testPage(
   environment,
   t,
   viewport = { width: 1440, height: 1100 },
+  { authenticated = true } = {},
 ) {
-  const context = await environment.browser.newContext({ viewport });
+  const context = await environment.browser.newContext({
+    viewport,
+    ...(authenticated ? { httpCredentials: ADMIN_TEST_CREDENTIALS } : {}),
+  });
   await context.route("**/*", (route) =>
     [environment.origin, environment.fixture.origin].includes(
       new URL(route.request().url()).origin,

@@ -18,7 +18,7 @@ import {
   emptyCategoryForm,
   type CategoryFormValues,
 } from "@/lib/admin/category-form";
-import { supabase } from "@/lib/supabase/client";
+import { deleteAdminRecord } from "@/lib/admin/admin-delete-client";
 import type { Category } from "@/types/configurator";
 import { adminDictionary } from "@/lib/i18n/admin-dictionary";
 import { useConfiguratorStore } from "@/store/configurator-store";
@@ -114,13 +114,10 @@ export function CategoryAdmin({ initialCategories }: CategoryAdminProps) {
 
     setErrorMessage(null);
 
-    const { error } = await supabase
-      .from("categories")
-      .delete()
-      .eq("id", category.id);
+    const result = await deleteAdminRecord("categories", category.id);
 
-    if (error) {
-      setErrorMessage(error.message);
+    if (!result.ok) {
+      setErrorMessage(result.message || t.deleteCategoryError);
       return;
     }
 

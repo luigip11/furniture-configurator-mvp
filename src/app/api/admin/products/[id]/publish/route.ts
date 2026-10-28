@@ -1,12 +1,15 @@
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { validatedRecord, validatedUuid } from "@/lib/admin/input-validation";
 import { readAdminJson, adminInputError } from "@/lib/admin/request-body";
+import { rejectUnauthorizedAdmin } from "@/lib/admin/admin-access";
 
 // Aggiorna lo stato di pubblicazione dal server, così il configuratore legge un valore persistito.
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  const denied = rejectUnauthorizedAdmin(request);
+  if (denied) return denied;
   let id, payload;
   try {
     id = validatedUuid((await context.params).id);

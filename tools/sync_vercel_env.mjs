@@ -11,10 +11,13 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
+// Le credenziali admin sono obbligatorie: senza, il proxy lascia l'area admin chiusa anche in produzione.
 const VERCEL_ENV_KEYS = [
   "NEXT_PUBLIC_SUPABASE_URL",
   "NEXT_PUBLIC_SUPABASE_ANON_KEY",
   "SUPABASE_SERVICE_ROLE_KEY",
+  "ADMIN_USERNAME",
+  "ADMIN_PASSWORD",
 ];
 
 // Legge un .env semplice preservando solo chiavi esplicitamente consentite.

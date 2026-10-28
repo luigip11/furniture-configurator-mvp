@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 
 import { LanguageSwitcher } from "@/components/shared/LanguageSwitcher";
 import { useConfiguratorStore } from "@/store/configurator-store";
@@ -26,12 +25,13 @@ export function ConfiguratorHeader() {
       <div className="flex w-full flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between md:w-auto md:justify-end">
         <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
           {!customerPreview ? (
-            <Link
+            // Link nativo: il prefetch di next/link chiederebbe le credenziali admin a chi apre solo il configuratore.
+            <a
               href="/admin"
               className="whitespace-nowrap rounded-lg border border-blue-600 bg-blue-500 px-2 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-600 sm:px-3 sm:text-sm"
             >
               {t.adminArea}
-            </Link>
+            </a>
           ) : null}
 
           <button

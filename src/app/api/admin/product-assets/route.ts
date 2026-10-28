@@ -14,9 +14,12 @@ import { signUploadReceipt } from "@/lib/admin/upload-receipt";
 import { validatedRecord, validatedText } from "@/lib/admin/input-validation";
 import { readAdminJson, adminInputError } from "@/lib/admin/request-body";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { rejectUnauthorizedAdmin } from "@/lib/admin/admin-access";
 
 // Prepara un upload diretto: i byte pesanti non transitano dalle funzioni Vercel.
 export async function POST(request: Request) {
+  const denied = rejectUnauthorizedAdmin(request);
+  if (denied) return denied;
   let input;
   try {
     input = validatedRecord(await readAdminJson(request, 8192), [
@@ -107,6 +110,8 @@ export async function POST(request: Request) {
 
 // Compensa soltanto upload con ricevuta valida e ancora estranei ai prodotti salvati.
 export async function DELETE(request: Request) {
+  const denied = rejectUnauthorizedAdmin(request);
+  if (denied) return denied;
   try {
     const input = validatedRecord(await readAdminJson(request), ["receipts"]);
     await removeUnusedUploads(input.receipts as string[]);
